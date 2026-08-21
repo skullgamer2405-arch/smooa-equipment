@@ -1,0 +1,295 @@
+<!DOCTYPE html><html lang="th" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>ปฏิทินการจอง - Equipment by SMO</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#1a365d",
+                      "primary-container": "#1a365d",
+                      "on-primary": "#ffffff",
+                      "secondary": "#f59e0b",
+                      "secondary-container": "#f59e0b",
+                      "on-secondary-container": "#ffffff",
+                      "surface": "#ffffff",
+                      "background": "#f8fafc",
+                      "on-background": "#1a365d",
+                      "outline": "#cbd5e1",
+                      "outline-variant": "#e2e8f0",
+                      "surface-variant": "#f1f5f9",
+                      "surface-container": "#f1f5f9",
+                      "surface-container-low": "#f8fafc",
+                      "surface-container-high": "#e2e8f0",
+                      "surface-container-highest": "#cbd5e1",
+                      "surface-container-lowest": "#ffffff",
+                      "on-surface": "#1e293b",
+                      "on-surface-variant": "#64748b",
+                      "error": "#ef4444",
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "20px",
+                      "md": "24px",
+                      "xl": "64px",
+                      "sm": "12px",
+                      "lg": "40px",
+                      "xs": "4px",
+                      "base": "8px",
+                      "container-max": "1200px"
+              },
+              "fontFamily": {
+                      "headline-lg-mobile": ["Prompt"],
+                      "body-lg": ["Sarabun"],
+                      "headline-lg": ["Prompt"],
+                      "headline-md": ["Prompt"],
+                      "label-md": ["Sarabun"],
+                      "headline-sm": ["Prompt"],
+                      "body-md": ["Sarabun"],
+                      "body-sm": ["Sarabun"]
+              },
+              "fontSize": {
+                      "headline-lg-mobile": ["26px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                      "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "label-md": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-sm": ["20px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                      "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        body { background-color: #f8fafc; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-lg h-16 bg-white shadow-sm border-b border-outline-variant">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="font-headline-md text-headline-md font-bold text-primary lg:pl-0 pl-4">
+            Equipment by SMO
+        </div>
+<div class="hidden md:flex flex-1 justify-center gap-8">
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">หน้าหลัก</a>
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">อุปกรณ์</a>
+<a class="text-primary font-bold border-b-2 border-secondary font-label-md text-label-md py-4 transition-colors px-4" href="#">การจองของฉัน</a>
+</div>
+
+</header>
+<!-- SideNavBar & Main Content Wrapper -->
+<div class="flex pt-16 min-h-screen">
+<!-- SideNavBar (Desktop) -->
+<nav class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 hidden lg:flex flex-col py-md bg-surface-container-low shadow-sm z-40 border-r border-outline-variant">
+<div class="px-6 mb-8 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+<img alt="โลโก้ชมรม" class="object-cover w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOcqXi63zp1C5skigSf76PsoLG3v-49M_7_o1ypR8UXcq6F5gTIKyZsOqByG8TkMXLSYabH-KGR8CCATiR856k-TTYp4qXULjpsDj9PE3vVBfT0PZITueqYs0ZY3Bv-9tcyMQQWJm-_7EQEmTiVLhqElMPTIHSY_X2_bGJ-SNeuPoE2uvAyh6u5x7L1QYMRJ40zK4whBWuwvBpt5IYJ9QNrF7wJo2I23zRPXpIk86LwiCO5dKBL0lJTUnumbkHBpG2xvw">
+</div>
+<div>
+<div class="font-headline-sm text-headline-sm font-semibold text-primary">SMO.CRA</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Equipment by SMO</div>
+</div>
+</div><div class="px-4 mb-6">
+<button class="w-full bg-secondary text-white py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+                ยืมอุปกรณ์ใหม่
+             </button>
+</div>
+<div class="flex-1 overflow-y-auto font-label-md text-label-md flex flex-col gap-2">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">home</span>
+                หน้าหลัก
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                อุปกรณ์
+            </a><a class="flex items-center gap-3 text-white rounded-xl px-4 py-3 mx-2 scale-98 duration-150 transition-all shadow-sm bg-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">calendar_month</span>
+                ปฏิทินการจองอุปกรณ์
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">bookmark</span>
+                การจองของฉัน
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">history</span>
+                ประวัติ
+            </a>
+</div>
+<div class="px-4 mt-auto space-y-4 pb-4">
+<div class="flex items-center">
+<a class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all flex items-center justify-center group" href="#" title="ระบบแอดมิน">
+<span class="material-symbols-outlined text-2xl group-hover:text-primary">admin_panel_settings</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 lg:ml-64 p-4 md:p-lg bg-background w-full">
+<div class="max-w-[1200px] mx-auto">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-lg gap-4">
+<div>
+<h1 class="font-headline-lg text-headline-lg font-bold text-primary">ปฏิทินการจอง</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">ดูและจัดการตารางการยืม-คืนอุปกรณ์ของคุณ</p>
+</div>
+<button class="lg:hidden w-full sm:w-auto bg-secondary text-white hover:opacity-90 transition-colors px-6 py-3 rounded-xl font-label-md text-label-md flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+                    ยืมอุปกรณ์ใหม่
+                </button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-lg items-start">
+<!-- Main Calendar View -->
+<div class="xl:col-span-8 bg-white rounded-2xl p-md shadow-sm border border-outline-variant">
+<div class="flex justify-between items-center mb-6">
+<h2 class="font-headline-md text-headline-md font-semibold text-primary">พฤศจิกายน 2023</h2>
+<div class="flex gap-2">
+<button class="p-2 rounded-full hover:bg-surface-container text-on-surface transition-colors border border-outline-variant">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="px-4 py-2 rounded-full hover:bg-primary hover:text-white text-primary border border-primary font-label-md text-label-md transition-colors">
+                                วันนี้
+                            </button>
+<button class="p-2 rounded-full hover:bg-surface-container text-on-surface transition-colors border border-outline-variant">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Calendar Grid -->
+<div class="w-full">
+<div class="grid grid-cols-7 mb-4 text-center">
+<div class="font-label-md text-label-md text-error">อา.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">จ.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">อ.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">พ.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">พฤ.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">ศ.</div>
+<div class="font-label-md text-label-md text-on-surface-variant">ส.</div>
+</div>
+<div class="grid grid-cols-7 gap-px bg-outline-variant rounded-lg overflow-hidden border border-outline-variant">
+<!-- Empty/Past dates -->
+<div class="min-h-[100px] bg-white p-2"><span class="text-on-surface-variant opacity-40 font-body-sm">29</span></div>
+<div class="min-h-[100px] bg-white p-2"><span class="text-on-surface-variant opacity-40 font-body-sm">30</span></div>
+<div class="min-h-[100px] bg-white p-2"><span class="text-on-surface-variant opacity-40 font-body-sm">31</span></div>
+<!-- Active Month -->
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">1</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">2</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors">
+<span class="text-on-surface font-body-sm">3</span>
+<div class="mt-1 px-1.5 py-0.5 bg-primary text-white rounded text-[10px] font-medium truncate">กล้อง DSLR</div>
+</div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">4</span></div>
+<!-- Row 2 -->
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">5</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">6</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">7</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">8</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">9</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">10</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">11</span></div>
+<!-- Row 3: Current Selected -->
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">12</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">13</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors">
+<span class="text-on-surface font-body-sm">14</span>
+<div class="mt-1 px-1.5 py-0.5 bg-secondary text-white rounded text-[10px] font-medium truncate">โปรเจคเตอร์</div>
+</div>
+<div class="min-h-[100px] bg-primary/5 p-2 ring-2 ring-inset ring-primary">
+<span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs">15</span>
+<div class="mt-2 space-y-1">
+<div class="px-1.5 py-0.5 bg-primary text-white rounded text-[10px] font-medium truncate">ไมโครโฟนไร้สาย</div>
+<div class="px-1.5 py-0.5 bg-secondary text-white rounded text-[10px] font-medium truncate">ไฟสตูดิโอ LED</div>
+</div>
+</div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">16</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">17</span></div>
+<div class="min-h-[100px] bg-white p-2 hover:bg-surface-container cursor-pointer transition-colors"><span class="text-on-surface font-body-sm">18</span></div>
+</div>
+</div>
+</div>
+<!-- Side Panel -->
+<div class="xl:col-span-4 flex flex-col gap-md sticky top-24">
+<!-- Selected Day Details -->
+<div class="bg-white rounded-2xl p-md shadow-sm border border-outline-variant">
+<div class="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant">
+<h3 class="font-headline-sm text-headline-sm font-semibold text-primary">15 พฤศจิกายน 2023</h3>
+<span class="bg-surface-container px-3 py-1 rounded-full font-label-md text-on-surface-variant">2 รายการ</span>
+</div>
+<div class="space-y-4">
+<!-- Card 1 -->
+<div class="p-4 rounded-xl border border-outline-variant hover:border-primary transition-all">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-sm">mic</span>
+</div>
+<h4 class="font-label-md text-label-md text-on-surface">ไมโครโฟนไร้สาย (x2)</h4>
+</div>
+<span class="px-2 py-1 bg-secondary text-white rounded text-[10px] font-bold uppercase tracking-wider">รอรับของ</span>
+</div>
+<div class="text-body-sm text-on-surface-variant flex items-center gap-2 mt-2">
+<span class="material-symbols-outlined text-sm">schedule</span> 09:00 - 16:00
+                                </div>
+<div class="text-body-sm text-on-surface-variant flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-sm">tag</span> EQ-MIC-001, EQ-MIC-002
+                                </div>
+</div>
+<!-- Card 2 -->
+<div class="p-4 rounded-xl border border-outline-variant hover:border-primary transition-all">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-sm">lightbulb</span>
+</div>
+<h4 class="font-label-md text-label-md text-on-surface">ไฟสตูดิโอ LED</h4>
+</div>
+<span class="px-2 py-1 bg-primary text-white rounded text-[10px] font-bold uppercase tracking-wider">กำลังใช้งาน</span>
+</div>
+<div class="text-body-sm text-on-surface-variant flex items-center gap-2 mt-2">
+<span class="material-symbols-outlined text-sm">schedule</span> 13:00 - 18:00
+                                </div>
+<div class="text-body-sm text-on-surface-variant flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-sm">tag</span> EQ-LGT-005
+                                </div>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 border-2 border-primary text-primary hover:bg-primary hover:text-white rounded-lg font-label-md text-label-md transition-all">
+                            ดูรายละเอียดทั้งหมด
+                        </button>
+</div>
+<!-- CTA Card -->
+
+</div>
+</div>
+</div>
+</main>
+</div>
+
+
+
+
+
+
+
+
+
+
+</body></html>

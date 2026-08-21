@@ -1,0 +1,21 @@
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main  # deploy อัตโนมัติเมื่อ push ไปที่ branch main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only hosting,firestore:rules
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PROJECT_ID: smooa-c1945
