@@ -7,6 +7,7 @@ import {
   db,
   collection, query, orderBy, onSnapshot
 } from './firebase-config.js';
+import { showEquipmentQRModal, openQRScannerModal } from './qr-helper.js';
 
 // ---- State ----
 let allEquipment    = [];
@@ -57,6 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initSearch();
   initCategoryFilters();
   initLandingStats();
+
+  // Initialize QR Scanner button
+  const scanQrBtn = document.getElementById('scan-qr-btn');
+  if (scanQrBtn) {
+    scanQrBtn.addEventListener('click', () => {
+      openQRScannerModal();
+    });
+  }
 });
 
 // Cleanup เมื่อออกจากหน้า
@@ -221,11 +230,24 @@ function renderEquipment() {
 
   equipmentGrid.innerHTML = filtered.map(eq => createEquipmentCard(eq)).join('');
 
-  // Event delegation แทนการ bind ทีละปุ่ม
+  // Event handlers for booking buttons
   equipmentGrid.querySelectorAll('.book-now-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const equipmentId = btn.dataset.equipmentId;
       if (equipmentId) window.location.href = `booking.html?id=${equipmentId}`;
+    });
+  });
+
+  // Event handlers for QR Code modal buttons
+  equipmentGrid.querySelectorAll('.view-qr-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const equipmentId = btn.dataset.equipmentId;
+      const eq = allEquipment.find(item => item.id === equipmentId);
+      if (eq) {
+        showEquipmentQRModal(eq);
+      }
     });
   });
 }
@@ -236,11 +258,11 @@ function renderEquipment() {
 function createEquipmentCard(equipment) {
   const isAvailable = equipment.status === 'available';
   const statusText  = isAvailable ? 'ว่าง' : 'ไม่ว่าง';
-  const statusColor = isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+  const statusColor = isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
 
   const returnDateHTML = !isAvailable && equipment.returnDate
-    ? `<p class="text-xs text-on-surface-variant mt-1">
-        <span class="material-symbols-outlined text-xs align-middle">event</span>
+    ? `<p class="text-xs text-rose-600 mt-1 flex items-center gap-1 font-['Sarabun']">
+        <span class="material-symbols-outlined text-xs">event</span>
         คืนวันที่: ${formatDate(equipment.returnDate)}
       </p>`
     : '';
@@ -248,30 +270,66 @@ function createEquipmentCard(equipment) {
   const imageUrl = escapeHtml(equipment.imageUrl || 'https://placehold.co/400x300/1a365d/white?text=No+Image');
 
   return `
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col group" data-equipment-id="${equipment.id}">
-      <div class="relative overflow-hidden">
-        <img src="${imageUrl}" alt="${escapeHtml(equipment.title)}" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" onerror="this.src='https://placehold.co/400x300/1a365d/white?text=No+Image'" />
-        <span class="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold ${statusColor}">
+    <div class="bg-white rounded-2xl shadow-xs border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col group relative" data-equipment-id="${equipment.id}">
+      <div class="relative overflow-hidden aspect-4/3 bg-slate-100">
+        <img src="${imageUrl}" alt="${escapeHtml(equipment.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" onerror="this.src='https://placehold.co/400x300/1a365d/white?text=No+Image'" />
+        
+        <!-- Status Badge -->
+        <span class="absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor} shadow-xs backdrop-blur-md">
           ${statusText}
         </span>
-        <span class="absolute top-3 left-3 px-2 py-1 rounded-md text-xs font-medium bg-[#1a365d]/80 text-white backdrop-blur-sm">
-          ${escapeHtml(equipment.assetCode || '')}
+
+        <!-- Asset Code Badge -->
+        <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-[#1a365d]/90 text-white backdrop-blur-md shadow-xs">
+          ${escapeHtml(equipment.assetCode || '-')}
         </span>
-      </div>
-      <div class="p-4 flex flex-col flex-1">
-        <h3 class="font-semibold text-gray-800 font-['Prompt'] text-sm leading-tight">${escapeHtml(equipment.title)}</h3>
-        <p class="text-xs text-gray-500 mt-1 font-['Sarabun']">${escapeHtml(equipment.category || '')}</p>
-        ${returnDateHTML}
+
+        <!-- Floating Quick QR Button on top of image -->
         <button
-          class="book-now-btn mt-auto w-full py-2.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm
-            ${isAvailable
-              ? 'bg-[#1a365d] text-white hover:bg-[#0f2440] active:scale-95'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'}"
+          type="button"
+          class="view-qr-btn absolute bottom-3 right-3 w-9 h-9 rounded-xl bg-white/90 hover:bg-white text-slate-800 hover:text-primary shadow-md backdrop-blur-sm flex items-center justify-center transition-all group/qr active:scale-95 cursor-pointer"
           data-equipment-id="${equipment.id}"
-          ${!isAvailable ? 'disabled' : ''}
+          title="ดู QR Code สำหรับอุปกรณ์นี้"
         >
-          ${isAvailable ? 'จองตอนนี้' : 'ไม่พร้อมให้ยืม'}
+          <span class="material-symbols-outlined text-xl group-hover/qr:scale-110 transition-transform">qr_code_2</span>
         </button>
+      </div>
+
+      <div class="p-4 flex flex-col flex-1">
+        <div class="flex items-center justify-between gap-1 mb-1">
+          <span class="text-[11px] font-semibold text-primary bg-blue-50 px-2 py-0.5 rounded font-['Prompt']">
+            ${escapeHtml(equipment.category || 'อุปกรณ์')}
+          </span>
+        </div>
+
+        <h3 class="font-bold text-slate-800 font-['Prompt'] text-sm leading-snug group-hover:text-primary transition-colors line-clamp-2">
+          ${escapeHtml(equipment.title)}
+        </h3>
+
+        ${returnDateHTML}
+
+        <div class="mt-auto pt-4 flex items-center gap-2">
+          <button
+            type="button"
+            class="view-qr-btn p-2.5 rounded-xl border border-gray-200 hover:border-primary/40 hover:bg-blue-50/50 text-slate-700 hover:text-primary transition-all flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
+            data-equipment-id="${equipment.id}"
+            title="แสดง QR Code"
+          >
+            <span class="material-symbols-outlined text-lg">qr_code_2</span>
+          </button>
+          
+          <button
+            class="book-now-btn flex-1 py-2.5 px-3 rounded-xl font-medium font-['Prompt'] text-xs transition-all duration-200 shadow-xs flex items-center justify-center gap-1.5
+              ${isAvailable
+                ? 'bg-[#1a365d] hover:bg-[#0f2440] text-white active:scale-95 cursor-pointer'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'}"
+            data-equipment-id="${equipment.id}"
+            ${!isAvailable ? 'disabled' : ''}
+          >
+            <span class="material-symbols-outlined text-base">${isAvailable ? 'event_available' : 'block'}</span>
+            <span>${isAvailable ? 'จองยืมอุปกรณ์' : 'ไม่พร้อมให้ยืม'}</span>
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -358,6 +416,14 @@ function renderNewEquipmentAnnouncements() {
             <span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-secondary text-white text-[10px] font-bold font-['Prompt'] shadow-sm flex items-center gap-1">
               <span class="material-symbols-outlined text-[12px]">star</span> เข้าใหม่
             </span>
+            <button
+              type="button"
+              class="announcement-qr-btn absolute bottom-2 right-2 w-7 h-7 rounded-lg bg-white/90 hover:bg-white text-slate-800 hover:text-primary shadow-xs flex items-center justify-center transition-all cursor-pointer"
+              data-equipment-id="${item.id}"
+              title="ดู QR Code"
+            >
+              <span class="material-symbols-outlined text-sm">qr_code_2</span>
+            </button>
           </div>
           <div class="flex items-center justify-between text-[11px] text-gray-500 font-['Sarabun'] mb-1">
             <span class="font-medium text-[#1a365d] bg-blue-50 px-2 py-0.5 rounded">${escapeHtml(item.category || 'อุปกรณ์')}</span>
@@ -378,6 +444,18 @@ function renderNewEquipmentAnnouncements() {
       </div>
     `;
   }).join('');
+
+  // Bind QR buttons on announcements
+  newEquipmentList.querySelectorAll('.announcement-qr-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const equipmentId = btn.dataset.equipmentId;
+      const eq = allEquipment.find(item => item.id === equipmentId);
+      if (eq) {
+        showEquipmentQRModal(eq);
+      }
+    });
+  });
 }
 
 /**

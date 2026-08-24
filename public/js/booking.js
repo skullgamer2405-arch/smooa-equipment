@@ -209,7 +209,31 @@ async function handleSubmit() {
       createdAt:     serverTimestamp()
     };
 
-    await addDoc(collection(db, 'bookings'), bookingData);
+    const newDocRef = await addDoc(collection(db, 'bookings'), bookingData);
+
+    // Send admin email notification via backend API
+    try {
+      await fetch('/api/notify-admin-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId:     newDocRef.id,
+          equipmentName: currentEquipment.title || '',
+          equipmentCode: currentEquipment.assetCode || '',
+          fullName:      fullNameInput.value.trim(),
+          studentId:     studentIdInput.value.trim(),
+          faculty:       facultyInput?.value.trim() || '',
+          department:    departmentInput?.value.trim() || '',
+          affiliation:   affiliationInput?.value.trim() || '',
+          startDate:     startDateInput.value,
+          endDate:       endDateInput.value,
+          activityName:  activityNameInput.value.trim(),
+          reason:        reasonInput.value.trim()
+        })
+      });
+    } catch (notifErr) {
+      console.warn('Failed to send admin email notification:', notifErr);
+    }
 
     // Redirect to success page
     window.location.href = 'success.html';

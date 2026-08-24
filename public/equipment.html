@@ -176,12 +176,17 @@
 
         <!-- Search & Filters Section -->
         <section id="equipment-section" class="bg-white p-6 rounded-2xl shadow-sm border border-outline-variant">
-            <div class="flex flex-col md:flex-row gap-4 items-center mb-6">
+            <div class="flex flex-col sm:flex-row gap-3 items-center mb-6">
                 <!-- Search Bar -->
                 <div class="relative w-full flex-1">
                     <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
-                    <input id="search-input" class="w-full pl-12 pr-4 py-3 rounded-lg border border-outline-variant bg-surface-container-lowest focus:ring-2 focus:ring-secondary focus:border-secondary font-body-md text-body-md transition-all" placeholder="ค้นหาชื่ออุปกรณ์, รหัส, หรือหมวดหมู่..." type="text">
+                    <input id="search-input" class="w-full pl-12 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest focus:ring-2 focus:ring-secondary focus:border-secondary font-body-md text-body-md transition-all" placeholder="ค้นหาชื่ออุปกรณ์, รหัส, หรือหมวดหมู่..." type="text">
                 </div>
+                <!-- Scan QR Button for Quick Mobile / Camera Access -->
+                <button id="scan-qr-btn" type="button" class="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-['Prompt'] text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shrink-0 cursor-pointer">
+                    <span class="material-symbols-outlined text-xl text-secondary">qr_code_scanner</span>
+                    <span>สแกน QR อุปกรณ์</span>
+                </button>
             </div>
             <!-- Category Filters -->
             <div class="flex flex-wrap gap-2 md:gap-3">
@@ -209,6 +214,7 @@
         </section>
     </div>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script type="module" src="js/firebase-config.js"></script>
 <script type="module" src="js/catalog.js"></script>
 <script src="js/sidebar.js"></script>

@@ -10,6 +10,7 @@ import {
   serverTimestamp, onSnapshot, onAuthStateChanged
 } from './firebase-config.js';
 import { initLoginForm } from './auth.js';
+import { showEquipmentQRModal, printBatchEquipmentLabels } from './qr-helper.js';
 
 // ---- State ----
 let pendingBookings = [];
@@ -606,32 +607,36 @@ function renderEquipmentManagement() {
 
   equipmentList.innerHTML = allEquipment.map(eq => {
     const statusBadge = eq.status === 'available'
-      ? '<span class="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">ว่าง</span>'
+      ? '<span class="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-[\'Prompt\'] font-medium">ว่าง</span>'
       : eq.status === 'maintenance'
-      ? '<span class="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700">ซ่อมบำรุง</span>'
-      : '<span class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ไม่ว่าง</span>';
+      ? '<span class="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700 font-[\'Prompt\'] font-medium">ซ่อมบำรุง</span>'
+      : '<span class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-[\'Prompt\'] font-medium">ไม่ว่าง</span>';
 
     return `
-      <div class="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-        <div class="flex items-center gap-3">
-          <img src="${escapeHtml(eq.imageUrl || 'https://placehold.co/48x48/1a365d/white?text=EQ')}" alt="${escapeHtml(eq.title)}" class="w-12 h-12 rounded-lg object-cover" />
-          <div>
-            <p class="font-semibold text-sm font-['Prompt']">${escapeHtml(eq.title)}</p>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-gray-400 font-['Sarabun']">${escapeHtml(eq.assetCode || '')}</span>
+      <div class="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white hover:bg-slate-50 transition-all shadow-2xs">
+        <div class="flex items-center gap-3 min-w-0">
+          <img src="${escapeHtml(eq.imageUrl || 'https://placehold.co/48x48/1a365d/white?text=EQ')}" alt="${escapeHtml(eq.title)}" class="w-12 h-12 rounded-lg object-cover border border-gray-100 shrink-0" onerror="this.src='https://placehold.co/48x48/1a365d/white?text=EQ'" />
+          <div class="min-w-0">
+            <p class="font-semibold text-sm font-['Prompt'] text-slate-800 truncate">${escapeHtml(eq.title)}</p>
+            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+              <span class="text-xs font-mono font-bold text-primary bg-blue-50 px-1.5 py-0.2 rounded">${escapeHtml(eq.assetCode || '')}</span>
               ${statusBadge}
+              <span class="text-xs text-gray-400 font-['Sarabun'] hidden sm:inline">• ${escapeHtml(eq.category || '')}</span>
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-1">
-          <button data-eq-action="edit" data-eq-id="${eq.id}" class="p-2 rounded-lg text-gray-400 hover:text-[#1a365d] hover:bg-blue-50 transition-colors" title="แก้ไข">
+        <div class="flex items-center gap-1 shrink-0">
+          <button data-eq-action="qr" data-eq-id="${eq.id}" class="p-2 rounded-lg text-slate-500 hover:text-secondary hover:bg-amber-50 transition-colors" title="ดู / ดาวน์โหลด / พิมพ์ QR Code">
+            <span class="material-symbols-outlined text-lg">qr_code_2</span>
+          </button>
+          <button data-eq-action="edit" data-eq-id="${eq.id}" class="p-2 rounded-lg text-slate-500 hover:text-[#1a365d] hover:bg-blue-50 transition-colors" title="แก้ไข">
             <span class="material-symbols-outlined text-lg">edit</span>
           </button>
-          <button data-eq-action="delete" data-eq-id="${eq.id}" class="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="ลบ">
+          <button data-eq-action="delete" data-eq-id="${eq.id}" class="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors" title="ลบ">
             <span class="material-symbols-outlined text-lg">delete</span>
           </button>
           ${eq.status === 'unavailable' ? `
-            <button data-eq-action="returned" data-eq-id="${eq.id}" class="p-2 rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 transition-colors" title="บันทึกคืน">
+            <button data-eq-action="returned" data-eq-id="${eq.id}" class="p-2 rounded-lg text-slate-500 hover:text-green-600 hover:bg-green-50 transition-colors" title="บันทึกคืน">
               <span class="material-symbols-outlined text-lg">assignment_return</span>
             </button>
           ` : ''}
@@ -641,9 +646,52 @@ function renderEquipmentManagement() {
   }).join('');
 }
 
+/**
+ * Initialize event delegation for equipment list actions (QR, Edit, Delete, Return)
+ */
+function initEquipmentListDelegation() {
+  const equipmentList = document.getElementById('equipment-list');
+  if (equipmentList) {
+    equipmentList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-eq-action]');
+      if (!btn) return;
+
+      const action = btn.dataset.eqAction;
+      const eqId = btn.dataset.eqId;
+
+      if (action === 'qr') {
+        const eq = allEquipment.find(item => item.id === eqId);
+        if (eq) {
+          showEquipmentQRModal(eq);
+        }
+      } else if (action === 'edit') {
+        openEquipmentModal(eqId);
+      } else if (action === 'delete') {
+        handleDeleteEquipment(eqId, btn);
+      } else if (action === 'returned') {
+        handleMarkReturned(eqId, btn);
+      }
+    });
+  }
+
+  // Batch Print All QR Codes button
+  const batchPrintBtn = document.getElementById('batch-print-qr-btn');
+  if (batchPrintBtn) {
+    batchPrintBtn.addEventListener('click', () => {
+      if (allEquipment.length === 0) {
+        showToast('ไม่พบรายการอุปกรณ์สำหรับพิมพ์ป้าย QR', 'info');
+        return;
+      }
+      printBatchEquipmentLabels(allEquipment);
+    });
+  }
+}
+
 // ============================================
-// Equipment Modal
+// Equipment Modal & Image Upload
 // ============================================
+
+let currentUploadedImageUrl = '';
 
 /**
  * Initialize equipment modal handlers
@@ -651,6 +699,11 @@ function renderEquipmentManagement() {
 function initEquipmentModal() {
   if (addEquipmentBtn) {
     addEquipmentBtn.addEventListener('click', () => openEquipmentModal());
+  }
+
+  const addEquipmentBtnSec = document.getElementById('add-equipment-btn-sec');
+  if (addEquipmentBtnSec) {
+    addEquipmentBtnSec.addEventListener('click', () => openEquipmentModal());
   }
 
   const eqCancelBtn = document.getElementById('eq-cancel-btn');
@@ -666,6 +719,267 @@ function initEquipmentModal() {
     equipmentModal.addEventListener('click', (e) => {
       if (e.target === equipmentModal) closeEquipmentModal();
     });
+  }
+
+  initImageUploadHandlers();
+  fetchNotificationStatus();
+}
+
+/**
+ * Initialize Image Upload Dropzone, File Input and Previews
+ */
+function initImageUploadHandlers() {
+  const dropzone        = document.getElementById('eq-dropzone');
+  const fileInput       = document.getElementById('eq-file-input');
+  const changeImgBtn    = document.getElementById('eq-change-img-btn');
+  const removeImgBtn    = document.getElementById('eq-remove-img-btn');
+  const toggleUrlBtn    = document.getElementById('eq-toggle-url-btn');
+  const urlContainer    = document.getElementById('eq-url-input-container');
+  const imageUrlInput   = document.getElementById('eq-image-url');
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    // Drag & Drop
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('border-primary', 'bg-blue-50/60');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('border-primary', 'bg-blue-50/60');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        processSelectedImageFile(file);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const file = e.target.files[0];
+        processSelectedImageFile(file);
+      }
+    });
+  }
+
+  if (changeImgBtn && fileInput) {
+    changeImgBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+  }
+
+  if (removeImgBtn) {
+    removeImgBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearImagePreview();
+    });
+  }
+
+  if (toggleUrlBtn && urlContainer) {
+    toggleUrlBtn.addEventListener('click', () => {
+      urlContainer.classList.toggle('hidden');
+    });
+  }
+
+  if (imageUrlInput) {
+    imageUrlInput.addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      if (url) {
+        setImagePreview(url, 'URL รูปภาพภายนอก');
+      }
+    });
+  }
+}
+
+/**
+ * Process, compress and upload selected image file
+ */
+async function processSelectedImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    showToast('กรุณาเลือกเฉพาะไฟล์รูปภาพ (JPEG, PNG, WebP, GIF)', 'error');
+    return;
+  }
+
+  const dropzone = document.getElementById('eq-dropzone');
+  const previewContainer = document.getElementById('eq-preview-container');
+  const previewImg = document.getElementById('eq-preview-img');
+  const previewFilename = document.getElementById('eq-preview-filename');
+  const previewStatus = document.getElementById('eq-preview-status');
+
+  // Temporary local thumbnail preview immediately
+  const localUrl = URL.createObjectURL(file);
+  if (previewImg) previewImg.src = localUrl;
+  if (previewFilename) previewFilename.textContent = file.name;
+  if (previewStatus) {
+    previewStatus.innerHTML = '<span class="material-symbols-outlined text-xs animate-spin">progress_activity</span> กำลังประมวลผลรูป...';
+    previewStatus.className = 'inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-[\'Prompt\']';
+  }
+  if (dropzone) dropzone.classList.add('hidden');
+  if (previewContainer) previewContainer.classList.remove('hidden');
+
+  try {
+    // Compress image to high-quality max 1200px
+    const compressedBase64 = await compressImageFile(file, 1200, 0.85);
+
+    // Upload to server API
+    const response = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Image: compressedBase64 })
+    });
+
+    const result = await response.json();
+
+    if (result.success && result.imageUrl) {
+      currentUploadedImageUrl = result.imageUrl;
+      const imageUrlInput = document.getElementById('eq-image-url');
+      if (imageUrlInput) imageUrlInput.value = result.imageUrl;
+
+      if (previewStatus) {
+        previewStatus.innerHTML = '<span class="material-symbols-outlined text-xs">check_circle</span> บันทึกลงในระบบแล้ว';
+        previewStatus.className = 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-[\'Prompt\']';
+      }
+      showToast('อัปโหลดรูปภาพเรียบร้อยแล้ว', 'success');
+    } else {
+      // Fallback to compressed base64 directly into Firestore
+      currentUploadedImageUrl = compressedBase64;
+      const imageUrlInput = document.getElementById('eq-image-url');
+      if (imageUrlInput) imageUrlInput.value = compressedBase64;
+
+      if (previewStatus) {
+        previewStatus.innerHTML = '<span class="material-symbols-outlined text-xs">check_circle</span> พร้อมบันทึกในระบบ';
+        previewStatus.className = 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-[\'Prompt\']';
+      }
+    }
+  } catch (err) {
+    console.error('Error processing image:', err);
+    // Fallback using direct reader
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      currentUploadedImageUrl = e.target.result;
+      const imageUrlInput = document.getElementById('eq-image-url');
+      if (imageUrlInput) imageUrlInput.value = currentUploadedImageUrl;
+      if (previewStatus) {
+        previewStatus.innerHTML = '<span class="material-symbols-outlined text-xs">check_circle</span> พร้อมบันทึกในระบบ';
+        previewStatus.className = 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-[\'Prompt\']';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+/**
+ * Client-side Canvas Image Compression
+ */
+function compressImageFile(file, maxDimension = 1200, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Set Image Preview from existing URL
+ */
+function setImagePreview(url, filename = 'รูปภาพอุปกรณ์') {
+  if (!url) {
+    clearImagePreview();
+    return;
+  }
+
+  currentUploadedImageUrl = url;
+  const dropzone = document.getElementById('eq-dropzone');
+  const previewContainer = document.getElementById('eq-preview-container');
+  const previewImg = document.getElementById('eq-preview-img');
+  const previewFilename = document.getElementById('eq-preview-filename');
+  const previewStatus = document.getElementById('eq-preview-status');
+  const imageUrlInput = document.getElementById('eq-image-url');
+
+  if (previewImg) previewImg.src = url;
+  if (previewFilename) previewFilename.textContent = filename;
+  if (imageUrlInput) imageUrlInput.value = url;
+
+  if (previewStatus) {
+    previewStatus.innerHTML = '<span class="material-symbols-outlined text-xs">check_circle</span> รูปภาพปัจจุบัน';
+    previewStatus.className = 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-[\'Prompt\']';
+  }
+
+  if (dropzone) dropzone.classList.add('hidden');
+  if (previewContainer) previewContainer.classList.remove('hidden');
+}
+
+/**
+ * Clear Image Preview and reset to dropzone
+ */
+function clearImagePreview() {
+  currentUploadedImageUrl = '';
+  const dropzone = document.getElementById('eq-dropzone');
+  const previewContainer = document.getElementById('eq-preview-container');
+  const previewImg = document.getElementById('eq-preview-img');
+  const fileInput = document.getElementById('eq-file-input');
+  const imageUrlInput = document.getElementById('eq-image-url');
+
+  if (previewImg) previewImg.src = '';
+  if (fileInput) fileInput.value = '';
+  if (imageUrlInput) imageUrlInput.value = '';
+
+  if (previewContainer) previewContainer.classList.add('hidden');
+  if (dropzone) dropzone.classList.remove('hidden');
+}
+
+/**
+ * Fetch and display admin email notification configuration
+ */
+async function fetchNotificationStatus() {
+  try {
+    const res = await fetch('/api/admin/notifications');
+    const data = await res.json();
+    if (data.success && data.adminEmail) {
+      const emailEl = document.getElementById('admin-target-email');
+      if (emailEl) emailEl.textContent = data.adminEmail;
+    }
+  } catch (e) {
+    // Ignore error silently
   }
 }
 
@@ -685,6 +999,8 @@ function openEquipmentModal(equipmentId = null) {
   const catEl = document.getElementById('eq-category');
   if (catEl) catEl.selectedIndex = 0;
 
+  clearImagePreview();
+
   const modalTitle = document.getElementById('eq-modal-title');
 
   if (equipmentId) {
@@ -693,8 +1009,11 @@ function openEquipmentModal(equipmentId = null) {
       if (document.getElementById('eq-title'))    document.getElementById('eq-title').value    = eq.title      || '';
       if (document.getElementById('eq-code'))     document.getElementById('eq-code').value     = eq.assetCode  || '';
       if (document.getElementById('eq-category')) document.getElementById('eq-category').value = eq.category   || '';
-      if (document.getElementById('eq-image-url'))document.getElementById('eq-image-url').value= eq.imageUrl   || '';
       if (document.getElementById('eq-description')) document.getElementById('eq-description').value = eq.description || '';
+      
+      if (eq.imageUrl) {
+        setImagePreview(eq.imageUrl, eq.title || 'รูปภาพอุปกรณ์');
+      }
     }
     if (modalTitle) modalTitle.textContent = 'แก้ไขอุปกรณ์';
   } else {
@@ -707,16 +1026,18 @@ function openEquipmentModal(equipmentId = null) {
 function closeEquipmentModal() {
   if (equipmentModal) equipmentModal.classList.add('hidden');
   editingEquipmentId = null;
+  clearImagePreview();
 }
 
 /**
- * Save equipment (add or update) — รวม imageUrl ด้วย
+ * Save equipment (add or update) — รวม imageUrl จากการอัปโหลดหรือระบุ URL
  */
 async function saveEquipment() {
   const title       = document.getElementById('eq-title')?.value.trim()       || '';
   const assetCode   = document.getElementById('eq-code')?.value.trim()        || '';
   const category    = document.getElementById('eq-category')?.value.trim()    || '';
-  const imageUrl    = document.getElementById('eq-image-url')?.value.trim()   || '';
+  const urlFromInput= document.getElementById('eq-image-url')?.value.trim()   || '';
+  const imageUrl    = currentUploadedImageUrl || urlFromInput;
   const description = document.getElementById('eq-description')?.value.trim() || '';
 
   if (!title || !assetCode) {
@@ -732,25 +1053,25 @@ async function saveEquipment() {
       title,
       assetCode,
       category,
-      imageUrl,
+      imageUrl: imageUrl || '',
       description,
       updatedAt: serverTimestamp()
     };
 
     if (editingEquipmentId) {
       await updateDoc(doc(db, 'equipment', editingEquipmentId), data);
-      showToast('แก้ไขอุปกรณ์เรียบร้อยแล้ว', 'success');
+      showToast('แก้ไขอุปกรณ์และบันทึกรูปภาพเรียบร้อยแล้ว', 'success');
     } else {
       data.status    = 'available';
       data.createdAt = serverTimestamp();
       await addDoc(collection(db, 'equipment'), data);
-      showToast('เพิ่มอุปกรณ์เรียบร้อยแล้ว', 'success');
+      showToast('เพิ่มอุปกรณ์และบันทึกรูปภาพเข้าสู่ระบบเรียบร้อยแล้ว', 'success');
     }
 
     closeEquipmentModal();
   } catch (error) {
     console.error('Error saving equipment:', error);
-    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+    showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (error.message || ''), 'error');
   } finally {
     setButtonLoading(eqSaveBtn, false, 'บันทึกอุปกรณ์');
   }
