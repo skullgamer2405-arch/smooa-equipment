@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initLoginForm();
   initAdminListeners();
   initEquipmentModal();
+  initPendingTableDelegation();
   initEquipmentListDelegation();
 });
 
@@ -73,6 +74,8 @@ function loadDashboardStats() {
   );
   const unsubPending = onSnapshot(pendingQuery, (snapshot) => {
     if (statNewRequests) statNewRequests.textContent = snapshot.size;
+  }, (err) => {
+    console.warn('Dashboard stats (pending) notice:', err.message);
   });
   unsubscribers.push(unsubPending);
 
@@ -92,6 +95,8 @@ function loadDashboardStats() {
       if (endDate < now) overdueCount++;
     });
     if (statOverdue) statOverdue.textContent = overdueCount;
+  }, (err) => {
+    console.warn('Dashboard stats (active loans) notice:', err.message);
   });
   unsubscribers.push(unsubActive);
 }
@@ -214,10 +219,9 @@ function renderPendingTable() {
 }
 
 /**
- * Event delegation สำหรับ approve/reject — ไม่ต้อง bind ซ้ำทุก render
+ * Event delegation สำหรับ approve/reject ใน Pending Table
  */
-function initEquipmentListDelegation() {
-  // Pending table delegation
+function initPendingTableDelegation() {
   if (pendingTableBody) {
     pendingTableBody.addEventListener('click', async (e) => {
       const btn = e.target.closest('.action-btn');
@@ -228,22 +232,6 @@ function initEquipmentListDelegation() {
 
       if (action === 'approve') await handleApprove(bookingId, btn);
       if (action === 'reject')  await handleReject(bookingId, btn);
-    });
-  }
-
-  // Equipment list delegation
-  const equipmentList = document.getElementById('equipment-list');
-  if (equipmentList) {
-    equipmentList.addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-eq-action]');
-      if (!btn || btn.disabled) return;
-
-      const { eqAction, eqId } = btn.dataset;
-      if (!eqId) return;
-
-      if (eqAction === 'edit')     openEquipmentModal(eqId);
-      if (eqAction === 'delete')   await handleDeleteEquipment(eqId, btn);
-      if (eqAction === 'returned') await handleMarkReturned(eqId, btn);
     });
   }
 }
@@ -583,6 +571,8 @@ function loadEquipmentList() {
   const unsub = onSnapshot(q, (snapshot) => {
     allEquipment = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderEquipmentManagement();
+  }, (err) => {
+    console.warn('Equipment list snapshot notice:', err.message);
   });
   unsubscribers.push(unsub);
 }
