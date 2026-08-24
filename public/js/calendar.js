@@ -29,12 +29,12 @@ const THAI_MONTHS = [
 
 // Color palette for events
 const EVENT_COLORS = [
-  { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-200' },
-  { bg: 'bg-orange-100', text: 'text-orange-700',  border: 'border-orange-200' },
-  { bg: 'bg-green-100',  text: 'text-green-700',   border: 'border-green-200' },
-  { bg: 'bg-purple-100', text: 'text-purple-700',  border: 'border-purple-200' },
-  { bg: 'bg-pink-100',   text: 'text-pink-700',    border: 'border-pink-200' },
-  { bg: 'bg-teal-100',   text: 'text-teal-700',    border: 'border-teal-200' },
+  { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-200',   dot: 'bg-blue-500' },
+  { bg: 'bg-orange-100', text: 'text-orange-700',  border: 'border-orange-200', dot: 'bg-orange-500' },
+  { bg: 'bg-green-100',  text: 'text-green-700',   border: 'border-green-200',  dot: 'bg-green-500' },
+  { bg: 'bg-purple-100', text: 'text-purple-700',  border: 'border-purple-200', dot: 'bg-purple-500' },
+  { bg: 'bg-pink-100',   text: 'text-pink-700',    border: 'border-pink-200',   dot: 'bg-pink-500' },
+  { bg: 'bg-teal-100',   text: 'text-teal-700',    border: 'border-teal-200',   dot: 'bg-teal-500' },
 ];
 
 // ---- DOM Elements ----
@@ -118,29 +118,47 @@ function initNavigation() {
  * Load bookings + calendar entries from Firestore
  */
 function loadData() {
-  // Listen to approved bookings
-  const bookingsRef = collection(db, 'bookings');
-  const q = query(bookingsRef, where('status', '==', 'approved'), orderBy('startDate', 'asc'));
+  // Listen to approved bookings (query without requiring composite index)
+  try {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(bookingsRef, where('status', '==', 'approved'));
 
-  const unsubBookings = onSnapshot(q, (snapshot) => {
-    bookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const unsubBookings = onSnapshot(q, (snapshot) => {
+      bookings = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate || 0);
+          const dateB = b.startDate?.toDate ? b.startDate.toDate() : new Date(b.startDate || 0);
+          return dateA - dateB;
+        });
+      renderCalendar();
+      if (selectedDate) updateDayDetail(selectedDate);
+    }, (err) => {
+      console.warn('Notice: Bookings stream returned:', err.message);
+      renderCalendar();
+    });
+    unsubscribers.push(unsubBookings);
+  } catch (err) {
+    console.warn('Notice: Bookings init:', err.message);
     renderCalendar();
-    if (selectedDate) updateDayDetail(selectedDate);
-  }, (err) => {
-    console.error('Error loading bookings:', err);
-  });
-  unsubscribers.push(unsubBookings);
+  }
 
   // Listen to calendar entries
-  const entriesRef = collection(db, 'calendarEntries');
-  const unsubEntries = onSnapshot(entriesRef, (snapshot) => {
-    calendarEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  try {
+    const entriesRef = collection(db, 'calendarEntries');
+    const unsubEntries = onSnapshot(entriesRef, (snapshot) => {
+      calendarEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderCalendar();
+      if (selectedDate) updateDayDetail(selectedDate);
+    }, (err) => {
+      console.warn('Notice: Calendar entries stream:', err.message);
+      renderCalendar();
+    });
+    unsubscribers.push(unsubEntries);
+  } catch (err) {
+    console.warn('Notice: Calendar entries init:', err.message);
     renderCalendar();
-    if (selectedDate) updateDayDetail(selectedDate);
-  }, (err) => {
-    console.error('Error loading calendar entries:', err);
-  });
-  unsubscribers.push(unsubEntries);
+  }
 }
 
 /**
@@ -164,8 +182,8 @@ function renderCalendar() {
   for (let i = firstDay - 1; i >= 0; i--) {
     const day = daysInPrevMonth - i;
     html += `
-      <div class="min-h-[100px] p-2 bg-gray-50/50 border border-gray-100 rounded-lg opacity-40">
-        <span class="text-xs text-gray-400 font-['Sarabun']">${day}</span>
+      <div class="min-h-[58px] sm:min-h-[85px] md:min-h-[105px] p-1 sm:p-2 bg-gray-50/50 border border-gray-100 rounded-lg opacity-40">
+        <span class="text-[11px] sm:text-xs text-gray-400 font-['Sarabun']">${day}</span>
       </div>
     `;
   }
@@ -180,25 +198,41 @@ function renderCalendar() {
     const todayClass    = isToday ? 'ring-2 ring-[#f59e0b] ring-offset-1' : '';
     const selectedClass = isSelected ? 'bg-blue-50 border-[#1a365d]' : 'bg-white border-gray-100 hover:border-[#1a365d]/30';
     const todayBadge    = isToday
-      ? `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#f59e0b] text-white text-xs font-bold">${day}</span>`
-      : `<span class="text-sm text-gray-700 font-['Sarabun']">${day}</span>`;
+      ? `<span class="inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#f59e0b] text-white text-[11px] sm:text-xs font-bold">${day}</span>`
+      : `<span class="text-xs sm:text-sm text-gray-700 font-['Sarabun'] font-medium">${day}</span>`;
 
+    // Event chips for larger screens and dot indicators for small mobile screens
     const eventsHTML = dayEvents.slice(0, 3).map((event, idx) => {
       const color = EVENT_COLORS[idx % EVENT_COLORS.length];
-      return `<div class="text-[10px] px-1.5 py-0.5 rounded ${color.bg} ${color.text} truncate font-['Sarabun']">${escapeHtml(event.title)}</div>`;
+      return `
+        <div class="hidden sm:block text-[10px] px-1.5 py-0.5 rounded ${color.bg} ${color.text} truncate font-['Sarabun'] leading-tight">
+          ${escapeHtml(event.title)}
+        </div>
+      `;
     }).join('');
 
+    const mobileDotsHTML = dayEvents.length > 0
+      ? `<div class="flex sm:hidden items-center justify-center gap-0.5 mt-1 flex-wrap">
+          ${dayEvents.slice(0, 3).map((_, idx) => {
+            const color = EVENT_COLORS[idx % EVENT_COLORS.length];
+            return `<span class="w-1.5 h-1.5 rounded-full ${color.dot}"></span>`;
+          }).join('')}
+          ${dayEvents.length > 3 ? `<span class="text-[8px] text-gray-400">+</span>` : ''}
+         </div>`
+      : '';
+
     const moreCount = dayEvents.length > 3
-      ? `<div class="text-[10px] text-gray-400 px-1 font-['Sarabun']">+${dayEvents.length - 3} อื่นๆ</div>`
+      ? `<div class="hidden sm:block text-[10px] text-gray-400 px-1 font-['Sarabun']">+${dayEvents.length - 3} อื่นๆ</div>`
       : '';
 
     html += `
-      <div class="min-h-[100px] p-2 ${selectedClass} border rounded-lg cursor-pointer transition-all duration-200 ${todayClass} calendar-day"
+      <div class="min-h-[58px] sm:min-h-[85px] md:min-h-[105px] p-1 sm:p-2 ${selectedClass} border rounded-lg cursor-pointer transition-all duration-200 ${todayClass} calendar-day active:scale-[0.98]"
            data-date="${date.toISOString()}">
-        <div class="flex justify-between items-start mb-1">
+        <div class="flex justify-between items-start mb-0.5 sm:mb-1">
           ${todayBadge}
-          ${dayEvents.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1a365d] text-white">${dayEvents.length}</span>` : ''}
+          ${dayEvents.length > 0 ? `<span class="hidden sm:inline-flex text-[10px] px-1.5 py-0.2 rounded-full bg-[#1a365d] text-white">${dayEvents.length}</span>` : ''}
         </div>
+        ${mobileDotsHTML}
         <div class="space-y-0.5">
           ${eventsHTML}
           ${moreCount}
@@ -212,8 +246,8 @@ function renderCalendar() {
   const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
   for (let i = 1; i <= remainingCells; i++) {
     html += `
-      <div class="min-h-[100px] p-2 bg-gray-50/50 border border-gray-100 rounded-lg opacity-40">
-        <span class="text-xs text-gray-400 font-['Sarabun']">${i}</span>
+      <div class="min-h-[58px] sm:min-h-[85px] md:min-h-[105px] p-1 sm:p-2 bg-gray-50/50 border border-gray-100 rounded-lg opacity-40">
+        <span class="text-[11px] sm:text-xs text-gray-400 font-['Sarabun']">${i}</span>
       </div>
     `;
   }
@@ -288,6 +322,11 @@ function selectDate(date) {
   selectedDate = date;
   renderCalendar();
   updateDayDetail(date);
+
+  // On smaller screens, scroll to detail panel so user sees the schedule immediately
+  if (window.innerWidth < 1280 && dayDetailPanel) {
+    dayDetailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 /**

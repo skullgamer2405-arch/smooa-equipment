@@ -78,8 +78,10 @@ export function onAuthChange(callback) {
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    const loginSection    = document.getElementById('login-section');
+    const loginSection     = document.getElementById('login-section');
     const dashboardSection = document.getElementById('dashboard-section');
+    const landingBg        = document.getElementById('landing-background');
+    if (landingBg)        landingBg.classList.remove('hidden');
     if (loginSection)     loginSection.classList.remove('hidden');
     if (dashboardSection) dashboardSection.classList.add('hidden');
     return null;
@@ -115,11 +117,15 @@ export function initLoginForm() {
   }
 
   function showDashboard() {
+    const landingBg = document.getElementById('landing-background');
+    if (landingBg)        landingBg.classList.add('hidden');
     if (loginSection)     loginSection.classList.add('hidden');
     if (dashboardSection) dashboardSection.classList.remove('hidden');
   }
 
   function showLogin() {
+    const landingBg = document.getElementById('landing-background');
+    if (landingBg)        landingBg.classList.remove('hidden');
     if (loginSection)     loginSection.classList.remove('hidden');
     if (dashboardSection) dashboardSection.classList.add('hidden');
   }

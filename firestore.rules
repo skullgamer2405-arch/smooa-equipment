@@ -61,7 +61,9 @@ service cloud.firestore {
         // ตรวจวันที่: startDate ต้องไม่เกิน endDate
         && request.resource.data.startDate <= request.resource.data.endDate;
 
-      allow read, update, delete: if isAdmin();
+      // Public can read bookings for stats/calendar; Admins can manage all
+      allow read: if true;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================

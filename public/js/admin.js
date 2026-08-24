@@ -105,14 +105,21 @@ function loadDashboardStats() {
 function loadPendingRequests() {
   const q = query(
     collection(db, 'bookings'),
-    where('status', '==', 'pending'),
-    orderBy('createdAt', 'desc')
+    where('status', '==', 'pending')
   );
 
   const unsub = onSnapshot(q, (snapshot) => {
-    pendingBookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    pendingBookings = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
     currentPage = 1; // reset to first page on new data
     renderPendingTable();
+  }, (err) => {
+    console.warn('Notice: Failed loading pending requests:', err);
   });
   unsubscribers.push(unsub);
 }
@@ -290,90 +297,277 @@ function updatePagination() {
 }
 
 // ============================================
-// Approve / Reject Bookings (ด้วย Transaction)
+// Modal Helper Functions (Action & Status Modals)
+// ============================================
+
+const actionModal = document.getElementById('booking-action-modal');
+const actionModalTitle = document.getElementById('action-modal-title');
+const actionModalDesc = document.getElementById('action-modal-desc');
+const actionModalIcon = document.getElementById('action-modal-icon');
+const actionModalIconBg = document.getElementById('action-modal-icon-bg');
+const actionRejectContainer = document.getElementById('action-reject-reason-container');
+const actionRejectInput = document.getElementById('action-reject-reason-input');
+const actionConfirmBtn = document.getElementById('action-modal-confirm-btn');
+const actionCancelBtn = document.getElementById('action-modal-cancel-btn');
+
+const statusResultModal = document.getElementById('status-result-modal');
+const statusResultTitle = document.getElementById('status-result-title');
+const statusResultDesc = document.getElementById('status-result-desc');
+const statusResultIcon = document.getElementById('status-result-icon');
+const statusResultIconBg = document.getElementById('status-result-icon-bg');
+const statusResultCloseBtn = document.getElementById('status-result-close-btn');
+
+let currentActionConfirmCallback = null;
+
+if (actionCancelBtn && actionModal) {
+  actionCancelBtn.addEventListener('click', () => {
+    actionModal.classList.add('hidden');
+    currentActionConfirmCallback = null;
+  });
+}
+
+if (actionConfirmBtn && actionModal) {
+  actionConfirmBtn.addEventListener('click', async () => {
+    if (typeof currentActionConfirmCallback === 'function') {
+      const reason = actionRejectInput ? actionRejectInput.value.trim() : '';
+      const cb = currentActionConfirmCallback;
+      currentActionConfirmCallback = null;
+      actionModal.classList.add('hidden');
+      await cb(reason);
+    }
+  });
+}
+
+if (statusResultCloseBtn && statusResultModal) {
+  statusResultCloseBtn.addEventListener('click', () => {
+    statusResultModal.classList.add('hidden');
+  });
+}
+
+/**
+ * Show Action Confirmation Modal (No native confirm/prompt blocks)
+ */
+function showConfirmDialog({
+  title = 'ยืนยันการดำเนินการ',
+  desc = 'คุณต้องการดำเนินการนี้ใช่หรือไม่?',
+  icon = 'task_alt',
+  isDanger = false,
+  showReasonInput = false,
+  confirmText = 'ยืนยัน',
+  onConfirm
+}) {
+  if (!actionModal) {
+    if (typeof onConfirm === 'function') onConfirm('');
+    return;
+  }
+
+  if (actionModalTitle) actionModalTitle.textContent = title;
+  if (actionModalDesc)  actionModalDesc.textContent = desc;
+  if (actionModalIcon)  actionModalIcon.textContent = icon;
+
+  if (actionModalIconBg) {
+    actionModalIconBg.className = isDanger
+      ? 'w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4 border border-red-100 shadow-inner'
+      : 'w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-inner';
+  }
+
+  if (actionConfirmBtn) {
+    actionConfirmBtn.className = isDanger
+      ? 'flex-1 py-2.5 px-4 rounded-xl bg-red-600 text-white font-[\'Prompt\'] text-sm font-semibold hover:bg-red-700 transition-all shadow-md flex items-center justify-center gap-2'
+      : 'flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 text-white font-[\'Prompt\'] text-sm font-semibold hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2';
+    actionConfirmBtn.innerHTML = `<span>${confirmText}</span>`;
+  }
+
+  if (actionRejectContainer) {
+    if (showReasonInput) {
+      actionRejectContainer.classList.remove('hidden');
+      if (actionRejectInput) actionRejectInput.value = '';
+    } else {
+      actionRejectContainer.classList.add('hidden');
+    }
+  }
+
+  currentActionConfirmCallback = onConfirm;
+  actionModal.classList.remove('hidden');
+}
+
+/**
+ * Show Success or Failure Result Modal Popup
+ */
+function showStatusPopup({
+  success = true,
+  title = '',
+  message = ''
+}) {
+  if (!statusResultModal) {
+    showToast(message || (success ? 'สำเร็จ' : 'ไม่สำเร็จ'), success ? 'success' : 'error');
+    return;
+  }
+
+  if (statusResultTitle) {
+    statusResultTitle.textContent = title || (success ? 'ดำเนินการสำเร็จ' : 'ดำเนินการไม่สำเร็จ');
+  }
+  if (statusResultDesc) {
+    statusResultDesc.textContent = message || (success ? 'การดำเนินการเสร็จสมบูรณ์เรียบร้อยแล้ว' : 'เกิดข้อผิดพลาดในการดำเนินการ');
+  }
+
+  if (statusResultIcon) {
+    statusResultIcon.textContent = success ? 'check_circle' : 'cancel';
+  }
+
+  if (statusResultIconBg) {
+    statusResultIconBg.className = success
+      ? 'w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-100'
+      : 'w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4 border border-red-100';
+  }
+
+  if (statusResultCloseBtn) {
+    statusResultCloseBtn.className = success
+      ? 'w-full py-2.5 rounded-xl bg-emerald-600 text-white font-[\'Prompt\'] font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-md'
+      : 'w-full py-2.5 rounded-xl bg-red-600 text-white font-[\'Prompt\'] font-semibold text-sm hover:bg-red-700 transition-colors shadow-md';
+  }
+
+  statusResultModal.classList.remove('hidden');
+}
+
+// ============================================
+// Approve / Reject Bookings
 // ============================================
 
 /**
- * Approve a booking request — ใช้ Transaction ป้องกัน race condition
+ * Approve a booking request
  */
 async function handleApprove(bookingId, btn) {
-  if (!confirm('ต้องการอนุมัติคำขอยืมนี้ใช่หรือไม่?')) return;
+  const booking = pendingBookings.find(b => b.id === bookingId);
+  const applicantName = booking?.fullName ? `ของคุณ ${booking.fullName}` : '';
+  const equipName = booking?.equipmentName ? ` (${booking.equipmentName})` : '';
 
-  setButtonLoading(btn, true);
+  showConfirmDialog({
+    title: 'ยืนยันการอนุมัติคำขอยืม',
+    desc: `คุณต้องการอนุมัติคำขอยืมอุปกรณ์${equipName} ${applicantName} ใช่หรือไม่?`,
+    icon: 'task_alt',
+    isDanger: false,
+    showReasonInput: false,
+    confirmText: 'ยืนยันอนุมัติ',
+    onConfirm: async () => {
+      setButtonLoading(btn, true);
 
-  try {
-    // อ่านข้อมูล booking ก่อน
-    const bookingRef = doc(db, 'bookings', bookingId);
-    const bookingSnap = await getDoc(bookingRef);
+      try {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        const bookingSnap = await getDoc(bookingRef);
 
-    if (!bookingSnap.exists()) {
-      showToast('ไม่พบคำขอนี้', 'error');
-      return;
+        if (!bookingSnap.exists()) {
+          showStatusPopup({
+            success: false,
+            title: 'ไม่สำเร็จ',
+            message: 'ไม่พบรายการคำขอยืมนี้ในระบบ'
+          });
+          return;
+        }
+
+        const bookingData = bookingSnap.data();
+
+        if (bookingData.status !== 'pending') {
+          showStatusPopup({
+            success: false,
+            title: 'ไม่สำเร็จ',
+            message: 'คำขอนี้ถูกดำเนินการไปก่อนหน้านี้แล้ว'
+          });
+          return;
+        }
+
+        // Update booking status
+        await updateDoc(bookingRef, {
+          status: 'approved',
+          approvedAt: serverTimestamp()
+        });
+
+        // Update equipment status
+        if (bookingData.equipmentId) {
+          const equipmentRef = doc(db, 'equipment', bookingData.equipmentId);
+          await updateDoc(equipmentRef, {
+            status: 'unavailable',
+            returnDate: bookingData.endDate
+          });
+        }
+
+        showStatusPopup({
+          success: true,
+          title: 'อนุมัติสำเร็จ',
+          message: `อนุมัติคำขอยืมอุปกรณ์${equipName} เรียบร้อยแล้ว ระบบได้ปรับปรุงสถานะและบันทึกลงในปฏิทินแล้ว`
+        });
+        showToast('อนุมัติคำขอเรียบร้อยแล้ว', 'success');
+      } catch (error) {
+        console.error('Error approving booking:', error);
+        showStatusPopup({
+          success: false,
+          title: 'เกิดข้อผิดพลาด',
+          message: 'ไม่สามารถอนุมัติคำขอได้: ' + (error.message || 'โปรดลองใหม่อีกครั้ง')
+        });
+        showToast('เกิดข้อผิดพลาดในการอนุมัติ', 'error');
+      } finally {
+        setButtonLoading(btn, false);
+      }
     }
-
-    const bookingData = bookingSnap.data();
-
-    // ตรวจ status อีกครั้งก่อน update (ป้องกัน approve ซ้ำ)
-    if (bookingData.status !== 'pending') {
-      showToast('คำขอนี้ถูกดำเนินการไปแล้ว', 'info');
-      return;
-    }
-
-    // Update booking status
-    await updateDoc(bookingRef, {
-      status: 'approved',
-      approvedAt: serverTimestamp()
-    });
-
-    // Update equipment status
-    if (bookingData.equipmentId) {
-      const equipmentRef = doc(db, 'equipment', bookingData.equipmentId);
-      await updateDoc(equipmentRef, {
-        status: 'unavailable',
-        returnDate: bookingData.endDate
-      });
-    }
-
-    showToast('อนุมัติคำขอเรียบร้อยแล้ว', 'success');
-  } catch (error) {
-    console.error('Error approving booking:', error);
-    showToast('เกิดข้อผิดพลาดในการอนุมัติ', 'error');
-  } finally {
-    setButtonLoading(btn, false);
-  }
+  });
 }
 
 /**
  * Reject a booking request
  */
 async function handleReject(bookingId, btn) {
-  const reason = prompt('กรุณาระบุเหตุผลในการปฏิเสธ (ถ้ามี):');
-  if (reason === null) return; // User cancelled
+  const booking = pendingBookings.find(b => b.id === bookingId);
+  const applicantName = booking?.fullName ? `ของคุณ ${booking.fullName}` : '';
+  const equipName = booking?.equipmentName ? ` (${booking.equipmentName})` : '';
 
-  setButtonLoading(btn, true);
+  showConfirmDialog({
+    title: 'ยืนยันการปฏิเสธคำขอ',
+    desc: `คุณต้องการปฏิเสธคำขอยืมอุปกรณ์${equipName} ${applicantName} ใช่หรือไม่? สามารถระบุเหตุผลด้านล่างได้`,
+    icon: 'cancel',
+    isDanger: true,
+    showReasonInput: true,
+    confirmText: 'ยืนยันปฏิเสธคำขอ',
+    onConfirm: async (reason) => {
+      setButtonLoading(btn, true);
 
-  try {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    const bookingSnap = await getDoc(bookingRef);
+      try {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        const bookingSnap = await getDoc(bookingRef);
 
-    if (!bookingSnap.exists() || bookingSnap.data().status !== 'pending') {
-      showToast('คำขอนี้ถูกดำเนินการไปแล้ว', 'info');
-      return;
+        if (!bookingSnap.exists() || bookingSnap.data().status !== 'pending') {
+          showStatusPopup({
+            success: false,
+            title: 'ไม่สำเร็จ',
+            message: 'คำขอนี้ถูกดำเนินการไปก่อนหน้านี้แล้ว'
+          });
+          return;
+        }
+
+        await updateDoc(bookingRef, {
+          status: 'rejected',
+          adminNote: reason || '',
+          rejectedAt: serverTimestamp()
+        });
+
+        showStatusPopup({
+          success: true,
+          title: 'ปฏิเสธคำขอสำเร็จ',
+          message: `ปฏิเสธคำขอยืมอุปกรณ์${equipName} เรียบร้อยแล้ว${reason ? ` (เหตุผล: ${reason})` : ''}`
+        });
+        showToast('ปฏิเสธคำขอเรียบร้อยแล้ว', 'info');
+      } catch (error) {
+        console.error('Error rejecting booking:', error);
+        showStatusPopup({
+          success: false,
+          title: 'เกิดข้อผิดพลาด',
+          message: 'ไม่สามารถปฏิเสธคำขอได้: ' + (error.message || 'โปรดลองใหม่อีกครั้ง')
+        });
+        showToast('เกิดข้อผิดพลาดในการปฏิเสธ', 'error');
+      } finally {
+        setButtonLoading(btn, false);
+      }
     }
-
-    await updateDoc(bookingRef, {
-      status: 'rejected',
-      adminNote: reason || '',
-      rejectedAt: serverTimestamp()
-    });
-
-    showToast('ปฏิเสธคำขอเรียบร้อยแล้ว', 'info');
-  } catch (error) {
-    console.error('Error rejecting booking:', error);
-    showToast('เกิดข้อผิดพลาดในการปฏิเสธ', 'error');
-  } finally {
-    setButtonLoading(btn, false);
-  }
+  });
 }
 
 // ============================================
@@ -566,54 +760,96 @@ async function saveEquipment() {
  * Delete equipment
  */
 async function handleDeleteEquipment(equipmentId, btn) {
-  if (!confirm('ต้องการลบอุปกรณ์นี้ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
+  const eq = allEquipment.find(e => e.id === equipmentId);
+  const eqName = eq?.title ? ` "${eq.title}"` : '';
 
-  setButtonLoading(btn, true);
-  try {
-    await deleteDoc(doc(db, 'equipment', equipmentId));
-    showToast('ลบอุปกรณ์เรียบร้อยแล้ว', 'success');
-  } catch (error) {
-    console.error('Error deleting equipment:', error);
-    showToast('เกิดข้อผิดพลาดในการลบ', 'error');
-  } finally {
-    setButtonLoading(btn, false);
-  }
+  showConfirmDialog({
+    title: 'ยืนยันการลบอุปกรณ์',
+    desc: `ต้องการลบอุปกรณ์${eqName} ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+    icon: 'delete_forever',
+    isDanger: true,
+    showReasonInput: false,
+    confirmText: 'ยืนยันลบ',
+    onConfirm: async () => {
+      setButtonLoading(btn, true);
+      try {
+        await deleteDoc(doc(db, 'equipment', equipmentId));
+        showStatusPopup({
+          success: true,
+          title: 'ลบสำเร็จ',
+          message: `ลบอุปกรณ์${eqName} ออกจากระบบเรียบร้อยแล้ว`
+        });
+        showToast('ลบอุปกรณ์เรียบร้อยแล้ว', 'success');
+      } catch (error) {
+        console.error('Error deleting equipment:', error);
+        showStatusPopup({
+          success: false,
+          title: 'ไม่สำเร็จ',
+          message: 'เกิดข้อผิดพลาดในการลบอุปกรณ์: ' + (error.message || '')
+        });
+        showToast('เกิดข้อผิดพลาดในการลบ', 'error');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    }
+  });
 }
 
 /**
  * Mark equipment as returned
  */
 async function handleMarkReturned(equipmentId, btn) {
-  if (!confirm('ยืนยันว่าอุปกรณ์ได้ถูกส่งคืนแล้ว?')) return;
+  const eq = allEquipment.find(e => e.id === equipmentId);
+  const eqName = eq?.title ? ` "${eq.title}"` : '';
 
-  setButtonLoading(btn, true);
-  try {
-    await updateDoc(doc(db, 'equipment', equipmentId), {
-      status: 'available',
-      returnDate: null
-    });
+  showConfirmDialog({
+    title: 'ยืนยันการรับคืนอุปกรณ์',
+    desc: `ยืนยันว่าอุปกรณ์${eqName} ได้รับการส่งคืนกลับเข้าคลังเรียบร้อยแล้วใช่หรือไม่?`,
+    icon: 'assignment_turned_in',
+    isDanger: false,
+    showReasonInput: false,
+    confirmText: 'ยืนยันรับคืน',
+    onConfirm: async () => {
+      setButtonLoading(btn, true);
+      try {
+        await updateDoc(doc(db, 'equipment', equipmentId), {
+          status: 'available',
+          returnDate: null
+        });
 
-    // Update related active booking to returned
-    const bookingsQuery = query(
-      collection(db, 'bookings'),
-      where('equipmentId', '==', equipmentId),
-      where('status', '==', 'approved')
-    );
-    const snapshot = await getDocs(bookingsQuery);
-    for (const bookingDoc of snapshot.docs) {
-      await updateDoc(doc(db, 'bookings', bookingDoc.id), {
-        status: 'returned',
-        returnedAt: serverTimestamp()
-      });
+        // Update related active booking to returned
+        const bookingsQuery = query(
+          collection(db, 'bookings'),
+          where('equipmentId', '==', equipmentId),
+          where('status', '==', 'approved')
+        );
+        const snapshot = await getDocs(bookingsQuery);
+        for (const bookingDoc of snapshot.docs) {
+          await updateDoc(doc(db, 'bookings', bookingDoc.id), {
+            status: 'returned',
+            returnedAt: serverTimestamp()
+          });
+        }
+
+        showStatusPopup({
+          success: true,
+          title: 'บันทึกการคืนสำเร็จ',
+          message: `บันทึกการส่งคืนอุปกรณ์${eqName} เรียบร้อยแล้ว สถานะอุปกรณ์พร้อมให้ยืมต่อได้ทันที`
+        });
+        showToast('บันทึกการคืนอุปกรณ์เรียบร้อยแล้ว', 'success');
+      } catch (error) {
+        console.error('Error marking returned:', error);
+        showStatusPopup({
+          success: false,
+          title: 'ไม่สำเร็จ',
+          message: 'เกิดข้อผิดพลาดในการบันทึกการคืนอุปกรณ์: ' + (error.message || '')
+        });
+        showToast('เกิดข้อผิดพลาด', 'error');
+      } finally {
+        setButtonLoading(btn, false);
+      }
     }
-
-    showToast('บันทึกการคืนอุปกรณ์เรียบร้อยแล้ว', 'success');
-  } catch (error) {
-    console.error('Error marking returned:', error);
-    showToast('เกิดข้อผิดพลาด', 'error');
-  } finally {
-    setButtonLoading(btn, false);
-  }
+  });
 }
 
 // ============================================

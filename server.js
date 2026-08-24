@@ -17,6 +17,22 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
+app.get('/equipment', (req, res) => {
+  res.sendFile(path.join(publicDir, 'equipment.html'));
+});
+
+app.get('/calendar', (req, res) => {
+  res.sendFile(path.join(publicDir, 'calendar.html'));
+});
+
+app.get('/booking', (req, res) => {
+  res.sendFile(path.join(publicDir, 'booking.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(publicDir, 'admin.html'));
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}`);
 });

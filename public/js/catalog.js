@@ -25,21 +25,95 @@ const CATEGORY_MAP = {
 let unsubscribeSnapshot = null;
 
 // ---- DOM Elements ----
-const equipmentGrid  = document.getElementById('equipment-grid');
-const searchInput    = document.getElementById('search-input');
-const loadingSpinner = document.getElementById('loading-spinner');
+const equipmentGrid    = document.getElementById('equipment-grid');
+const newEquipmentList = document.getElementById('new-equipment-list');
+const searchInput      = document.getElementById('search-input');
+const loadingSpinner   = document.getElementById('loading-spinner');
+
+// Stats elements on landing page
+const statAvailableEl  = document.getElementById('stat-available-items');
+const statTotalEl      = document.getElementById('stat-total-items');
+const statPendingEl    = document.getElementById('stat-pending-requests');
+const statBorrowedEl   = document.getElementById('stat-borrowed-items');
 
 // ---- Initialize ----
 document.addEventListener('DOMContentLoaded', () => {
+  // Check URL params (e.g. ?category=sports or ?search=ball)
+  const urlParams = new URLSearchParams(window.location.search);
+  const catParam = urlParams.get('category');
+  const searchParam = urlParams.get('search');
+
+  if (catParam && CATEGORY_MAP.hasOwnProperty(catParam)) {
+    currentCategory = catParam;
+  }
+  if (searchParam) {
+    searchKeyword = searchParam.trim().toLowerCase();
+    if (searchInput) {
+      searchInput.value = searchParam;
+    }
+  }
+
   initCatalog();
   initSearch();
   initCategoryFilters();
+  initLandingStats();
 });
 
 // Cleanup เมื่อออกจากหน้า
+let unsubscribeStats = null;
 window.addEventListener('beforeunload', () => {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
+  if (unsubscribeStats) unsubscribeStats();
 });
+
+/**
+ * Load and display summary stats for landing page in real-time
+ */
+function initLandingStats() {
+  if (!statAvailableEl && !statPendingEl && !statBorrowedEl) return;
+
+  // Listen to bookings collection for pending & borrowed counts
+  const bookingsQuery = query(collection(db, 'bookings'));
+  unsubscribeStats = onSnapshot(bookingsQuery, (snapshot) => {
+    let pendingCount = 0;
+    let borrowedCount = 0;
+
+    snapshot.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.status === 'pending') {
+        pendingCount++;
+      } else if (data.status === 'approved' || data.status === 'borrowed') {
+        borrowedCount++;
+      }
+    });
+
+    if (statPendingEl) statPendingEl.textContent = pendingCount.toLocaleString('th-TH');
+    if (statBorrowedEl) statBorrowedEl.textContent = borrowedCount.toLocaleString('th-TH');
+  }, (err) => {
+    console.warn('Could not fetch bookings stats:', err);
+    if (statPendingEl && statPendingEl.textContent === '-') statPendingEl.textContent = '0';
+    if (statBorrowedEl && statBorrowedEl.textContent === '-') statBorrowedEl.textContent = '0';
+  });
+}
+
+/**
+ * Update equipment stats cards
+ */
+function updateEquipmentStats() {
+  if (!statAvailableEl && !statTotalEl) return;
+
+  const total = allEquipment.length;
+  const available = allEquipment.filter(item => item.status === 'available').length;
+  const unavailable = total - available;
+
+  if (statAvailableEl) statAvailableEl.textContent = available.toLocaleString('th-TH');
+  if (statTotalEl) statTotalEl.textContent = total.toLocaleString('th-TH');
+
+  // If bookings query is delayed, we can also supplement borrowed from unavailable equipment
+  if (statBorrowedEl && (statBorrowedEl.textContent === '-' || statBorrowedEl.textContent === '0') && unavailable > 0) {
+    statBorrowedEl.textContent = unavailable.toLocaleString('th-TH');
+  }
+}
 
 /**
  * Load equipment from Firestore with real-time updates
@@ -52,6 +126,8 @@ function initCatalog() {
   unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
     allEquipment = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderEquipment();
+    renderNewEquipmentAnnouncements();
+    updateEquipmentStats();
     showLoading(false);
   }, (error) => {
     console.error('Error loading equipment:', error);
@@ -87,6 +163,19 @@ function initSearch() {
  */
 function initCategoryFilters() {
   const categoryButtons = document.querySelectorAll('[data-category]');
+  if (!categoryButtons.length) return;
+
+  // Set initial active state based on currentCategory
+  categoryButtons.forEach(b => {
+    if (b.dataset.category === currentCategory) {
+      b.classList.remove('border', 'border-outline-variant', 'text-on-surface-variant', 'bg-white');
+      b.classList.add('bg-primary', 'text-white');
+    } else {
+      b.classList.remove('bg-primary', 'text-white');
+      b.classList.add('border', 'border-outline-variant', 'text-on-surface-variant', 'bg-white');
+    }
+  });
+
   categoryButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       categoryButtons.forEach(b => {
@@ -235,6 +324,60 @@ function formatDate(timestamp) {
   return date.toLocaleDateString('th-TH', {
     year: 'numeric', month: 'short', day: 'numeric'
   });
+}
+
+/**
+ * Render New Equipment Announcements
+ */
+function renderNewEquipmentAnnouncements() {
+  if (!newEquipmentList) return;
+
+  if (allEquipment.length === 0) {
+    newEquipmentList.innerHTML = `
+      <div class="col-span-full py-8 text-center text-gray-400 font-['Sarabun'] text-sm">
+        <span class="material-symbols-outlined text-3xl mb-1 text-gray-300">campaign</span>
+        <p>ยังไม่มีประกาศอุปกรณ์ใหม่ในขณะนี้</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Take top 4 most recently added items
+  const recentItems = allEquipment.slice(0, 4);
+
+  newEquipmentList.innerHTML = recentItems.map(item => {
+    const isAvailable = item.status === 'available';
+    const imageUrl = escapeHtml(item.imageUrl || 'https://placehold.co/400x300/1a365d/white?text=No+Image');
+    const timeStr = item.createdAt ? formatDate(item.createdAt) : 'เพิ่มเมื่อเร็วๆ นี้';
+
+    return `
+      <div class="border border-amber-100 bg-gradient-to-b from-amber-50/40 to-white rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between group">
+        <div>
+          <div class="relative rounded-lg overflow-hidden mb-3 aspect-video bg-gray-100">
+            <img src="${imageUrl}" alt="${escapeHtml(item.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x300/1a365d/white?text=No+Image'" />
+            <span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-secondary text-white text-[10px] font-bold font-['Prompt'] shadow-sm flex items-center gap-1">
+              <span class="material-symbols-outlined text-[12px]">star</span> เข้าใหม่
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-gray-500 font-['Sarabun'] mb-1">
+            <span class="font-medium text-[#1a365d] bg-blue-50 px-2 py-0.5 rounded">${escapeHtml(item.category || 'อุปกรณ์')}</span>
+            <span>${timeStr}</span>
+          </div>
+          <h4 class="font-semibold text-gray-800 font-['Prompt'] text-sm line-clamp-1 group-hover:text-primary transition-colors">${escapeHtml(item.title)}</h4>
+          <p class="text-xs text-gray-500 font-['Sarabun'] line-clamp-1 mt-0.5">${escapeHtml(item.description || 'รหัส: ' + (item.assetCode || '-'))}</p>
+        </div>
+        <div class="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+          <span class="text-xs font-semibold ${isAvailable ? 'text-green-600' : 'text-red-500'} font-['Sarabun'] flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full ${isAvailable ? 'bg-green-500' : 'bg-red-500'}"></span>
+            ${isAvailable ? 'พร้อมใช้งาน' : 'ไม่ว่าง'}
+          </span>
+          <a href="booking.html?id=${item.id}" class="text-xs font-medium font-['Prompt'] text-primary hover:text-secondary flex items-center gap-0.5">
+            ยืมอุปกรณ์ <span class="material-symbols-outlined text-xs">arrow_forward</span>
+          </a>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 /**
