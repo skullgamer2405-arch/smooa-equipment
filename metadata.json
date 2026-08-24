@@ -1,0 +1,8 @@
+{
+  "name": "Equipment by SMO",
+  "description": "ระบบยืมอุปกรณ์ สโมสรนักศึกษาราชวิทยาลัยจุฬาภรณ์ (SMO.CRA Equipment Lending System)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

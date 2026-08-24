@@ -5,7 +5,7 @@
 
 import {
   db, auth,
-  collection, addDoc, query, where, orderBy,
+  collection, addDoc, getDocs, query, where, orderBy,
   Timestamp, serverTimestamp, onSnapshot, onAuthStateChanged
 } from './firebase-config.js';
 
@@ -296,6 +296,10 @@ function selectDate(date) {
 function updateDayDetail(date) {
   const dayEvents = getEventsForDate(date);
 
+  if (dayDetailPanel) {
+    dayDetailPanel.classList.remove('hidden');
+  }
+
   if (dayDetailDate) {
     dayDetailDate.textContent = date.toLocaleDateString('th-TH', {
       weekday: 'long',
@@ -357,7 +361,7 @@ function updateDayDetail(date) {
  */
 function initModal() {
   if (openModalBtn) {
-    openModalBtn.addEventListener('click', () => {
+    openModalBtn.addEventListener('click', async () => {
       if (addCalendarModal) {
         addCalendarModal.classList.remove('hidden');
         const modalDate = document.getElementById('modal-date');
@@ -367,6 +371,23 @@ function initModal() {
           const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
           const d = String(selectedDate.getDate()).padStart(2, '0');
           modalDate.value = `${y}-${m}-${d}`;
+        }
+        // Load equipment dropdown options
+        const modalEquipment = document.getElementById('modal-equipment');
+        if (modalEquipment && modalEquipment.options.length <= 1) {
+          try {
+            const snap = await getDocs(collection(db, 'equipment'));
+            modalEquipment.innerHTML = '<option value="">เลือกอุปกรณ์ที่ต้องการ</option>';
+            snap.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              const opt = document.createElement('option');
+              opt.value = data.title || docSnap.id;
+              opt.textContent = `${data.title || 'อุปกรณ์'} (${data.assetCode || '-'})`;
+              modalEquipment.appendChild(opt);
+            });
+          } catch (e) {
+            console.warn('Could not load equipment dropdown options:', e);
+          }
         }
       }
     });
