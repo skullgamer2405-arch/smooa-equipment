@@ -1,16 +1,5 @@
 {
-  "name": "smo-equipment-lending",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "node server.js",
-    "build": "node -e \"console.log('Build completed')\"",
-    "start": "node server.js"
-  },
   "dependencies": {
-    "express": "^4.21.2",
-    "multer": "^2.2.0",
-    "nodemailer": "^9.0.5",
-    "qrcode": "^1.5.4"
+    "firebase-admin": "^14.3.0"
   }
 }

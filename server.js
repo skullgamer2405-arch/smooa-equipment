@@ -1,9 +1,57 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+
+// ─── Firebase Admin Init ───────────────────────────────────────────────────
+// ใช้ GOOGLE_APPLICATION_CREDENTIALS (service account JSON path) หรือ
+// Application Default Credentials (Cloud Run / GCE) อัตโนมัติ
+if (!getApps().length) {
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      // รองรับ inject JSON string ตรงๆ ผ่าน env (สำหรับ Cloud Run secrets)
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      initializeApp({ credential: cert(serviceAccount) });
+    } else {
+      // Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS file path)
+      initializeApp();
+    }
+    console.log('[Firebase Admin] Initialized successfully.');
+  } catch (err) {
+    console.warn('[Firebase Admin] Init failed — admin token verification will be DISABLED:', err.message);
+  }
+}
+
+/**
+ * Middleware: ตรวจ Firebase ID Token จาก Authorization: Bearer <token>
+ * ถ้า Firebase Admin ยังไม่ได้ตั้งค่า (dev) → ผ่านได้ แต่ log warning
+ */
+async function verifyAdminToken(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  // ถ้า Admin SDK ยังไม่ init (dev without credentials) → แจ้ง warning แล้วผ่าน
+  if (!getApps().length) {
+    console.warn('[Auth] Firebase Admin not configured — skipping token check (dev mode)');
+    return next();
+  }
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Unauthorized: Missing token' });
+  }
+
+  try {
+    req.adminUser = await getAdminAuth().verifyIdToken(token);
+    next();
+  } catch (err) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Invalid or expired token' });
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -305,7 +353,7 @@ app.post('/api/notify-admin-booking', async (req, res) => {
 // ---------------------------------------------
 // API: Get Recent Notifications & SMTP Status
 // ---------------------------------------------
-app.get('/api/admin/notifications', (req, res) => {
+app.get('/api/admin/notifications', verifyAdminToken, (req, res) => {
   const transporter = getMailTransporter();
   res.json({
     success: true,
