@@ -107,11 +107,19 @@ function displayEquipmentInfo(equipment) {
 function initFormHandlers() {
   if (!bookingForm) return;
 
-  // ป้องกัน double submit — ใช้ submit event เดียว
+  // Form submit handler
   bookingForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     await handleSubmit();
   });
+
+  // Direct button click handler (since submitBtn is in the summary column outside form tag)
+  if (submitBtn) {
+    submitBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await handleSubmit();
+    });
+  }
 
   // Set minimum date to today
   const today = new Date();
