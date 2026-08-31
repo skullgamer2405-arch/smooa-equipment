@@ -23,6 +23,8 @@ const studentIdInput   = document.getElementById('student-id');
 const facultyInput     = document.getElementById('student-faculty');
 const departmentInput  = document.getElementById('student-department');
 const affiliationInput = document.getElementById('student-affiliation');
+const applicantEmailInput = document.getElementById('applicant-email');
+const applicantPhoneInput = document.getElementById('applicant-phone');
 const startDateInput   = document.getElementById('start-date');
 const endDateInput     = document.getElementById('end-date');
 const activityNameInput = document.getElementById('activity-name');
@@ -201,6 +203,8 @@ async function handleSubmit() {
       faculty:       facultyInput?.value.trim()      || '',
       department:    departmentInput?.value.trim()   || '',
       affiliation:   affiliationInput?.value.trim()  || '',
+      applicantEmail: applicantEmailInput?.value.trim() || '',
+      applicantPhone: applicantPhoneInput?.value.trim() || '',
       startDate:     Timestamp.fromDate(startDate),
       endDate:       Timestamp.fromDate(endDate),
       activityName:  activityNameInput.value.trim(),
@@ -228,7 +232,9 @@ async function handleSubmit() {
           startDate:     startDateInput.value,
           endDate:       endDateInput.value,
           activityName:  activityNameInput.value.trim(),
-          reason:        reasonInput.value.trim()
+          reason:        reasonInput.value.trim(),
+          applicantEmail: applicantEmailInput?.value.trim() || '',
+          applicantPhone: applicantPhoneInput?.value.trim() || ''
         })
       });
     } catch (notifErr) {

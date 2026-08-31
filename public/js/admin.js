@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAdminListeners();
   initEquipmentModal();
   initEquipmentListDelegation();
+  initExcelImport();
 });
 
 // Cleanup เมื่อออกจากหน้า
@@ -491,6 +492,30 @@ async function handleApprove(bookingId, btn) {
           });
         }
 
+        // ส่ง email แจ้งผู้ยืมว่าได้รับการอนุมัติ
+        if (bookingData.applicantEmail) {
+          try {
+            const startDate = bookingData.startDate?.toDate ? bookingData.startDate.toDate() : new Date(bookingData.startDate);
+            const endDate   = bookingData.endDate?.toDate   ? bookingData.endDate.toDate()   : new Date(bookingData.endDate);
+            await fetch('/api/notify-borrower-approved', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                bookingId:     bookingId,
+                equipmentName: bookingData.equipmentName || '',
+                equipmentCode: bookingData.assetCode     || '',
+                fullName:      bookingData.fullName      || '',
+                applicantEmail: bookingData.applicantEmail,
+                activityName:  bookingData.activityName  || '',
+                startDate:     startDate.toLocaleDateString('th-TH'),
+                endDate:       endDate.toLocaleDateString('th-TH')
+              })
+            });
+          } catch (notifErr) {
+            console.warn('[Notify Borrower Approved] Failed:', notifErr);
+          }
+        }
+
         showStatusPopup({
           success: true,
           title: 'อนุมัติสำเร็จ',
@@ -548,6 +573,24 @@ async function handleReject(bookingId, btn) {
           adminNote: reason || '',
           rejectedAt: serverTimestamp()
         });
+
+        // ส่ง email แจ้งผู้ยืมว่าไม่ได้รับการอนุมัติ
+        if (bookingSnap.data().applicantEmail) {
+          try {
+            await fetch('/api/notify-borrower-rejected', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                equipmentName: bookingSnap.data().equipmentName || '',
+                fullName:      bookingSnap.data().fullName      || '',
+                applicantEmail: bookingSnap.data().applicantEmail,
+                adminNote:     reason || ''
+              })
+            });
+          } catch (notifErr) {
+            console.warn('[Notify Borrower Rejected] Failed:', notifErr);
+          }
+        }
 
         showStatusPopup({
           success: true,
@@ -927,4 +970,421 @@ function formatDateThai(date) {
     month: 'short',
     day: 'numeric'
   });
+}
+
+// ============================================
+// Excel Bulk Import
+// ============================================
+
+/** รายการ equipment ที่ parse จาก Excel */
+let excelParsedRows = [];
+
+/**
+ * Initialize Excel bulk import UI & handlers
+ */
+function initExcelImport() {
+  const dropzone   = document.getElementById('excel-dropzone');
+  const fileInput  = document.getElementById('excel-file-input');
+  const clearBtn   = document.getElementById('excel-clear-btn');
+  const importBtn  = document.getElementById('excel-import-btn');
+  const templateBtn = document.getElementById('download-template-btn');
+
+  if (!dropzone || !fileInput) return;
+
+  // คลิก dropzone → เปิด file picker
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  // เลือกไฟล์จาก file picker — ตรวจ extension แล้ว route
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.name.match(/\.docx$/i)) {
+      parseDocxFile(file);
+    } else {
+      parseExcelFile(file);
+    }
+  });
+
+  // Drag over
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('border-green-500', 'bg-green-50/30');
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('border-green-500', 'bg-green-50/30');
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('border-green-500', 'bg-green-50/30');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (file.name.match(/\.docx$/i)) {
+      parseDocxFile(file);
+    } else {
+      parseExcelFile(file);
+    }
+  });
+
+  // ล้างข้อมูล
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      excelParsedRows = [];
+      fileInput.value = '';
+      document.getElementById('excel-preview-section')?.classList.add('hidden');
+      document.getElementById('excel-progress-container')?.classList.add('hidden');
+    });
+  }
+
+  // นำเข้า Firestore
+  if (importBtn) {
+    importBtn.addEventListener('click', () => batchImportEquipment());
+  }
+
+  // ดาวน์โหลด template
+  if (templateBtn) {
+    templateBtn.addEventListener('click', downloadExcelTemplate);
+  }
+}
+
+/**
+ * Parse Excel/XLSX file ด้วย SheetJS
+ */
+function parseExcelFile(file) {
+  if (!window.XLSX) {
+    showToast('ไม่พบ SheetJS library — กรุณา refresh หน้าเว็บ', 'error');
+    return;
+  }
+
+  const validTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel'
+  ];
+  if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+    showToast('กรุณาเลือกเฉพาะไฟล์ .xlsx หรือ .xls', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data     = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+      const rows     = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (rows.length === 0) {
+        showToast('ไม่พบข้อมูลในไฟล์ Excel', 'error');
+        return;
+      }
+
+      // Map column names (รองรับ header ภาษาไทยและภาษาอังกฤษ)
+      excelParsedRows = rows.map((row, idx) => ({
+        _rowNum:     idx + 2,
+        title:       (row['ชื่ออุปกรณ์'] || row['title'] || row['name'] || '').toString().trim(),
+        assetCode:   (row['รหัสอุปกรณ์'] || row['assetCode'] || row['code'] || '').toString().trim(),
+        category:    (row['หมวดหมู่'] || row['category'] || 'ครุภัณฑ์').toString().trim(),
+        imageUrl:    (row['URL รูปภาพ'] || row['imageUrl'] || row['image'] || '').toString().trim(),
+        description: (row['รายละเอียด'] || row['description'] || '').toString().trim(),
+        _valid:      !!(row['ชื่ออุปกรณ์'] || row['title'] || row['name']) &&
+                     !!(row['รหัสอุปกรณ์'] || row['assetCode'] || row['code'])
+      }));
+
+      renderExcelPreview();
+      showToast(`พบข้อมูล ${excelParsedRows.length} รายการ`, 'success');
+    } catch (err) {
+      console.error('Excel parse error:', err);
+      showToast('ไม่สามารถอ่านไฟล์ Excel ได้: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/**
+ * Parse Word (.docx) file ด้วย mammoth.js
+ * รองรับ:
+ *   - ตาราง (table) ที่มี header row
+ *   - รายการ bullet list แบบ "ชื่อ | รหัส | หมวดหมู่"
+ */
+function parseDocxFile(file) {
+  if (!window.mammoth) {
+    showToast('ไม่พบ mammoth.js library — กรุณา refresh หน้าเว็บ', 'error');
+    return;
+  }
+
+  if (!file.name.match(/\.docx$/i)) {
+    showToast('กรุณาเลือกเฉพาะไฟล์ .docx', 'error');
+    return;
+  }
+
+  showToast('กำลังอ่านไฟล์ Word...', 'info');
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const arrayBuffer = e.target.result;
+
+      // แปลง docx → HTML ด้วย mammoth
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      const html   = result.value;
+
+      // parse HTML เพื่อดึง table
+      const parser  = new DOMParser();
+      const htmlDoc = parser.parseFromString(html, 'text/html');
+      const tables  = htmlDoc.querySelectorAll('table');
+
+      if (tables.length > 0) {
+        // ─── กรณี 1: ไฟล์มีตาราง ───
+        excelParsedRows = parseDocxTable(tables[0]);
+      } else {
+        // ─── กรณี 2: ไม่มีตาราง — ลอง parse จาก paragraph list ───
+        excelParsedRows = parseDocxParagraphs(htmlDoc);
+      }
+
+      if (excelParsedRows.length === 0) {
+        showToast('ไม่พบข้อมูลอุปกรณ์ในไฟล์ Word — กรุณาตรวจสอบรูปแบบไฟล์', 'error');
+        return;
+      }
+
+      renderExcelPreview();
+      showToast(`อ่านไฟล์ Word สำเร็จ — พบ ${excelParsedRows.length} รายการ`, 'success');
+    } catch (err) {
+      console.error('Docx parse error:', err);
+      showToast('ไม่สามารถอ่านไฟล์ Word ได้: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/**
+ * Parse ตาราง HTML จาก Word document
+ * Row แรก = headers, rows ต่อๆ มา = data
+ */
+function parseDocxTable(table) {
+  const rows = Array.from(table.querySelectorAll('tr'));
+  if (rows.length < 2) return [];
+
+  // อ่าน headers จาก row แรก
+  const headerCells = Array.from(rows[0].querySelectorAll('th, td'))
+    .map(cell => cell.textContent.trim().toLowerCase());
+
+  // helper: หา index ของ header
+  const colIdx = (candidates) => {
+    for (const c of candidates) {
+      const i = headerCells.findIndex(h => h.includes(c));
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const titleIdx  = colIdx(['ชื่ออุปกรณ์', 'title', 'name', 'ชื่อ']);
+  const codeIdx   = colIdx(['รหัสอุปกรณ์', 'assetcode', 'code', 'รหัส']);
+  const catIdx    = colIdx(['หมวดหมู่', 'category', 'ประเภท']);
+  const imgIdx    = colIdx(['url', 'image', 'รูป']);
+  const descIdx   = colIdx(['รายละเอียด', 'description', 'หมายเหตุ', 'note']);
+
+  const parsed = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cells = Array.from(rows[i].querySelectorAll('td, th'))
+      .map(cell => cell.textContent.trim());
+
+    if (cells.every(c => !c)) continue; // ข้าม empty row
+
+    const title     = titleIdx  >= 0 ? (cells[titleIdx]  || '') : (cells[0] || '');
+    const assetCode = codeIdx   >= 0 ? (cells[codeIdx]   || '') : (cells[1] || '');
+    const category  = catIdx    >= 0 ? (cells[catIdx]    || 'ครุภัณฑ์') : (cells[2] || 'ครุภัณฑ์');
+    const imageUrl  = imgIdx    >= 0 ? (cells[imgIdx]    || '') : '';
+    const description = descIdx >= 0 ? (cells[descIdx]   || '') : (cells[4] || '');
+
+    parsed.push({
+      _rowNum:  i + 1,
+      title:    title.trim(),
+      assetCode: assetCode.trim(),
+      category:  category.trim(),
+      imageUrl:  imageUrl.trim(),
+      description: description.trim(),
+      _valid:   !!title.trim() && !!assetCode.trim()
+    });
+  }
+  return parsed;
+}
+
+/**
+ * Parse paragraph list จาก Word (กรณีไม่มีตาราง)
+ * รูปแบบที่รองรับ:
+ *   - "ชื่อ | รหัส | หมวดหมู่ | รายละเอียด"
+ *   - "ชื่อ, รหัส, หมวดหมู่"
+ *   - "ชื่อ - รหัส"
+ */
+function parseDocxParagraphs(htmlDoc) {
+  const paragraphs = Array.from(htmlDoc.querySelectorAll('p, li'))
+    .map(el => el.textContent.trim())
+    .filter(text => text.length > 0);
+
+  const parsed = [];
+  paragraphs.forEach((text, idx) => {
+    // ลอง split ด้วย | หรือ , หรือ \t
+    let parts = [];
+    if (text.includes('|'))  parts = text.split('|').map(s => s.trim());
+    else if (text.includes('\t')) parts = text.split('\t').map(s => s.trim());
+    else if (text.includes(',') && text.split(',').length >= 2) parts = text.split(',').map(s => s.trim());
+    else if (text.includes(' - ')) parts = text.split(' - ').map(s => s.trim());
+
+    if (parts.length >= 2) {
+      parsed.push({
+        _rowNum:  idx + 1,
+        title:    parts[0] || '',
+        assetCode: parts[1] || '',
+        category:  parts[2] || 'ครุภัณฑ์',
+        imageUrl:  parts[3] || '',
+        description: parts[4] || '',
+        _valid:   !!parts[0] && !!parts[1]
+      });
+    }
+  });
+  return parsed;
+}
+
+/**
+ * แสดงตาราง Preview ก่อน import
+ */
+function renderExcelPreview() {
+  const previewSection = document.getElementById('excel-preview-section');
+  const previewBody    = document.getElementById('excel-preview-body');
+  const previewCount   = document.getElementById('excel-preview-count');
+
+  if (!previewSection || !previewBody) return;
+
+  const validCount   = excelParsedRows.filter(r => r._valid).length;
+  const invalidCount = excelParsedRows.length - validCount;
+
+  if (previewCount) {
+    previewCount.innerHTML = `
+      พบ <strong>${excelParsedRows.length}</strong> รายการ
+      — <span class="text-green-600">${validCount} พร้อม import</span>
+      ${invalidCount > 0 ? `<span class="text-red-500 ml-2">${invalidCount} ข้อมูลไม่ครบ</span>` : ''}
+    `;
+  }
+
+  previewBody.innerHTML = excelParsedRows.map((row, idx) => `
+    <tr class="${row._valid ? '' : 'bg-red-50'}">
+      <td class="px-3 py-2 text-gray-400">${idx + 1}</td>
+      <td class="px-3 py-2 font-medium ${row.title ? 'text-slate-800' : 'text-red-500'}">
+        ${escapeHtml(row.title || '⚠ ไม่มีชื่อ')}
+      </td>
+      <td class="px-3 py-2 ${row.assetCode ? 'text-slate-600' : 'text-red-500'}">
+        ${escapeHtml(row.assetCode || '⚠ ไม่มีรหัส')}
+      </td>
+      <td class="px-3 py-2 text-slate-500">${escapeHtml(row.category || '-')}</td>
+      <td class="px-3 py-2">
+        ${row._valid
+          ? '<span class="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-0.5 rounded-full text-[10px] font-semibold">✅ พร้อม</span>'
+          : '<span class="inline-flex items-center gap-1 text-red-700 bg-red-50 px-2 py-0.5 rounded-full text-[10px] font-semibold">❌ ข้อมูลไม่ครบ</span>'
+        }
+      </td>
+    </tr>
+  `).join('');
+
+  previewSection.classList.remove('hidden');
+  document.getElementById('excel-progress-container')?.classList.add('hidden');
+}
+
+/**
+ * Batch import equipment รายการที่ valid ไปยัง Firestore
+ */
+async function batchImportEquipment() {
+  const validRows = excelParsedRows.filter(r => r._valid);
+  if (validRows.length === 0) {
+    showToast('ไม่มีรายการที่พร้อม import', 'error');
+    return;
+  }
+
+  const importBtn = document.getElementById('excel-import-btn');
+  const progressContainer = document.getElementById('excel-progress-container');
+  const progressBar  = document.getElementById('excel-progress-bar');
+  const progressText = document.getElementById('excel-progress-text');
+
+  if (importBtn) {
+    importBtn.disabled = true;
+    importBtn.innerHTML = `<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> กำลังนำเข้า...`;
+  }
+  if (progressContainer) progressContainer.classList.remove('hidden');
+
+  let successCount = 0;
+  let failCount    = 0;
+
+  for (let i = 0; i < validRows.length; i++) {
+    const row = validRows[i];
+    try {
+      await addDoc(collection(db, 'equipment'), {
+        title:       row.title,
+        assetCode:   row.assetCode,
+        category:    row.category || 'ครุภัณฑ์',
+        imageUrl:    row.imageUrl || '',
+        description: row.description || '',
+        status:      'available',
+        createdAt:   serverTimestamp(),
+        updatedAt:   serverTimestamp()
+      });
+      successCount++;
+    } catch (err) {
+      console.error(`Failed to import row ${row._rowNum}:`, err);
+      failCount++;
+    }
+
+    // อัปเดต progress bar
+    const pct = Math.round(((i + 1) / validRows.length) * 100);
+    if (progressBar)  progressBar.style.width = `${pct}%`;
+    if (progressText) progressText.textContent = `${i + 1} / ${validRows.length}`;
+  }
+
+  // Reset UI
+  if (importBtn) {
+    importBtn.disabled = false;
+    importBtn.innerHTML = `<span class="material-symbols-outlined text-base">cloud_upload</span> นำเข้าอุปกรณ์ทั้งหมด`;
+  }
+
+  if (successCount > 0) {
+    showStatusPopup({
+      success: true,
+      title: 'นำเข้าสำเร็จ!',
+      message: `นำเข้าอุปกรณ์เรียบร้อยแล้ว ${successCount} รายการ${failCount > 0 ? ` (ล้มเหลว ${failCount} รายการ)` : ''}`
+    });
+    showToast(`นำเข้าสำเร็จ ${successCount} รายการ`, 'success');
+
+    // Reset state
+    excelParsedRows = [];
+    const fileInput = document.getElementById('excel-file-input');
+    if (fileInput) fileInput.value = '';
+    document.getElementById('excel-preview-section')?.classList.add('hidden');
+    document.getElementById('excel-progress-container')?.classList.add('hidden');
+  } else {
+    showToast('นำเข้าไม่สำเร็จ กรุณาลองใหม่', 'error');
+  }
+}
+
+/**
+ * ดาวน์โหลด CSV Template สำหรับ Excel import
+ */
+function downloadExcelTemplate() {
+  const headers = ['ชื่ออุปกรณ์', 'รหัสอุปกรณ์', 'หมวดหมู่', 'URL รูปภาพ', 'รายละเอียด'];
+  const examples = [
+    ['โปรเจกเตอร์ EPSON EB-X51', 'EQ-001', 'ครุภัณฑ์', '', 'ความละเอียด XGA รองรับ HDMI'],
+    ['ลูกฟุตบอล Molten F5U2800', 'SP-001', 'กีฬา', '', 'เบอร์ 5 หนังแท้'],
+    ['ไมโครโฟนลอยไร้สาย', 'AV-001', 'อุปกรณ์จิปาถะ', '', 'พร้อมรีซีฟเวอร์ UHF']
+  ];
+
+  const csvContent = [headers, ...examples]
+    .map(row => row.map(cell => `"${cell}"`).join(','))
+    .join('\r\n');
+
+  // เพิ่ม BOM สำหรับ UTF-8 ให้ Excel อ่านภาษาไทยได้
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href     = url;
+  link.download = 'smo_equipment_template.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast('ดาวน์โหลด Template เรียบร้อยแล้ว', 'success');
 }

@@ -1,21 +1,122 @@
-name: Deploy to Firebase Hosting
+name: 🚀 Deploy SMO Equipment System
 
 on:
   push:
     branches:
-      - main  # deploy อัตโนมัติเมื่อ push ไปที่ branch main
+      - main
+  workflow_dispatch:   # รัน manual ได้จาก GitHub Actions tab
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true   # ยกเลิก deploy เก่าถ้ามี push ใหม่เข้ามา
 
 jobs:
-  deploy:
+  # ──────────────────────────────────────────────
+  # JOB 1: Lint & Validate (ตรวจก่อน deploy)
+  # ──────────────────────────────────────────────
+  validate:
+    name: ✅ Validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Firebase
-        uses: w9jds/firebase-action@master
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          args: deploy --only hosting,firestore:rules
+          node-version: '20'
+
+      - name: Check server.js syntax
+        run: node --check server.js
+
+      - name: Check JS files syntax
+        run: |
+          for f in public/js/*.js; do
+            echo "Checking $f..."
+            node --check "$f"
+          done
+
+  # ──────────────────────────────────────────────
+  # JOB 2: Deploy Firebase Hosting + Rules
+  # ──────────────────────────────────────────────
+  deploy-firebase:
+    name: 🔥 Deploy Firebase Hosting
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Hosting + Firestore Rules + Storage Rules
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_ID: smooa-c1945
+        run: |
+          firebase deploy \
+            --only hosting,firestore:rules,storage \
+            --project smooa-c1945 \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+  # ──────────────────────────────────────────────
+  # JOB 3: Deploy Backend (Cloud Run)
+  # ──────────────────────────────────────────────
+  deploy-cloudrun:
+    name: ☁️ Deploy Cloud Run (server.js)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ais-dev \
+            --source . \
+            --region asia-southeast1 \
+            --project smooa-c1945 \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ADMIN_NOTIFICATION_EMAIL=${{ secrets.ADMIN_NOTIFICATION_EMAIL }}" \
+            --set-env-vars "SMTP_HOST=${{ secrets.SMTP_HOST }}" \
+            --set-env-vars "SMTP_PORT=${{ secrets.SMTP_PORT }}" \
+            --set-env-vars "SMTP_USER=${{ secrets.SMTP_USER }}" \
+            --set-env-vars "SMTP_PASS=${{ secrets.SMTP_PASS }}" \
+            --set-env-vars "FIREBASE_SERVICE_ACCOUNT_JSON=${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}"
+
+  # ──────────────────────────────────────────────
+  # JOB 4: แจ้งผลการ Deploy
+  # ──────────────────────────────────────────────
+  notify:
+    name: 📣 Notify Result
+    needs: [deploy-firebase, deploy-cloudrun]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🚀 Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Hosting | ${{ needs.deploy-firebase.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cloud Run | ${{ needs.deploy-cloudrun.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
