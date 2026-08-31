@@ -1,0 +1,371 @@
+<!DOCTYPE html><html lang="th" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Equipment by SMO - Admin Request Approval</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#f59e0b", // Vibrant Orange (formerly Dark Navy)
+                        "secondary": "#f59e0b", // Also Orange for consistency in this theme
+                        "on-primary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "primary-container": "#f59e0b",
+                        "secondary-container": "#fef3c7",
+                        "surface": "#faf9fd",
+                        "background": "#faf9fd",
+                        "surface-container": "#efedf1",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e3e2e6",
+                        "on-surface": "#1a1c1e",
+                        "on-surface-variant": "#43474e",
+                        "outline": "#74777f",
+                        "outline-variant": "#c4c6cf",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "brand-dark": "#1a365d" // Kept for contrast if needed
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "20px",
+                        "md": "24px",
+                        "xl": "64px",
+                        "sm": "12px",
+                        "lg": "40px",
+                        "xs": "4px",
+                        "base": "8px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Prompt"],
+                        "body-lg": ["Sarabun"],
+                        "headline-lg": ["Prompt"],
+                        "headline-md": ["Prompt"],
+                        "label-md": ["Sarabun"],
+                        "headline-sm": ["Prompt"],
+                        "body-md": ["Sarabun"],
+                        "body-sm": ["Sarabun"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        }
+        .table-row-hover:hover {
+            background-color: #fff9eb;
+            box-shadow: 0 2px 10px rgba(245, 158, 11, 0.05);
+            transform: translateY(-1px);
+            transition: all 0.2s ease;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-primary/20 selection:text-primary">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-lg h-16 bg-white shadow-sm border-b border-outline-variant">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="font-headline-md text-headline-md font-bold text-primary lg:pl-0 pl-4">
+            Equipment by SMO
+        </div>
+<div class="hidden md:flex flex-1 justify-center gap-8">
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">หน้าหลัก</a>
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">อุปกรณ์</a>
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">การจองของฉัน</a>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full scale-95 active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full scale-95 active:opacity-80">
+
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden ml-2 cursor-pointer border border-outline-variant">
+<img alt="รูปโปรไฟล์ผู้ใช้งาน" class="object-cover w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-deQVTd_lHbgHgtElddcBjvLLsTr7syw1nbO5O0b58qNEGAl-sZQar6PFRCtjWFUo1Jnb5h4N4i0mP8wsA0xWkn57qHYssDHtpff8fDAwBeZ8kOPDtUgdARhNpof9fxfX25_m1kw-7C-0X12d60VTzccuWIzoSLyYVYwacQklb-OFmMNF0dR3kaDdrCLEx-QtXK2tMlKW9qlTbWyZ9WLDTgsRqH78G7aJ3sKSFlf0z6RmABwFm49zgojTWeWp1GqvzYOaDNETj3ii">
+</div>
+</div>
+</header>
+<div class="flex min-h-screen pt-16 md:pt-0">
+<!-- Side Navigation Bar (Desktop) -->
+<nav class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 hidden lg:flex flex-col py-md bg-surface-container-low shadow-sm z-40 border-r border-outline-variant">
+<div class="px-6 mb-8 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+<img alt="โลโก้ชมรม" class="object-cover w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYNeL2RBliw75on1xsJagG2_irdZl1taW-Me0l0vU9EVmo353cuBRdHImPnCQCo9_Grmf9PKAyaiv9GIPgHo6MelDGyHrIQ0CZzvW4c-Qi-Ox0CfwLsocTJ38NRIslujld1epdismjJlhfbdDl8CX88o3NcVV2kWGHaxTPXoo3mB0UhBAgAfCQPKQhIx4hxFXqiSOnPAwm15c9q4-NX1IqCKgkhnHbqTRquGZZ1z7AZTSUUyqUk2vCOYkJZmb0MlhaKN4">
+</div>
+<div>
+<div class="font-headline-sm text-headline-sm font-semibold text-primary">SMO.CRA</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Equipment by SMO</div>
+</div>
+</div><div class="px-4 mb-6">
+<button class="w-full bg-secondary text-white py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+                ยืมอุปกรณ์ใหม่
+             </button>
+</div>
+<div class="flex-1 overflow-y-auto font-label-md text-label-md flex flex-col gap-2">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">home</span>
+                หน้าหลัก
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                อุปกรณ์
+            </a><a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+                ปฏิทินการจองอุปกรณ์
+            </a><a class="flex items-center gap-3 bg-secondary text-white rounded-xl px-4 py-3 mx-2 scale-98 duration-150 transition-all shadow-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">admin_panel_settings</span>
+                การจัดการส่วนแอดมิน
+            </a>
+</div>
+<div class="px-4 mt-auto space-y-4 pb-4">
+<div class="flex items-center">
+<a class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all flex items-center justify-center group" href="#" title="ระบบแอดมิน">
+<span class="material-symbols-outlined text-2xl group-hover:text-primary">admin_panel_settings</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 w-full lg:ml-64 p-md lg:p-lg max-w-[1200px] mx-auto pb-24 lg:pb-lg">
+<!-- Page Header -->
+<div class="mb-lg">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">คำขอรอการอนุมัติ</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">จัดการรายการขอยืมอุปกรณ์จากสมาชิกชมรม</p>
+</div>
+<!-- Bento Grid Dashboard Summary -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md mb-xl">
+<div class="glass-card rounded-xl p-md flex items-center justify-between border-l-4 border-l-primary">
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">คำขอใหม่</p>
+<p class="font-headline-lg text-headline-lg text-on-surface font-bold">12</p>
+</div>
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">pending_actions</span>
+</div>
+</div>
+<div class="glass-card rounded-xl p-md flex items-center justify-between border-l-4 border-l-primary/60">
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">อุปกรณ์ที่ถูกยืม</p>
+<p class="font-headline-lg text-headline-lg text-on-surface font-bold">45</p>
+</div>
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary/60">
+<span class="material-symbols-outlined text-3xl">inventory</span>
+</div>
+</div>
+<div class="glass-card rounded-xl p-md flex items-center justify-between border-l-4 border-l-error">
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">เกินกำหนดคืน</p>
+<p class="font-headline-lg text-headline-lg text-error font-bold">3</p>
+</div>
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-3xl">warning</span>
+</div>
+</div>
+</div>
+<!-- Pending Requests Section -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-variant overflow-hidden">
+<div class="px-md py-4 border-b border-surface-variant flex justify-between items-center bg-surface-bright">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">รายการคำขอ (Pending Requests)</h2>
+<div class="flex gap-2">
+<button class="p-2 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="p-2 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">sort</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-lowest border-b-2 border-surface-variant">
+<th class="py-4 px-md font-label-md text-label-md text-on-surface-variant font-semibold">ผู้ยืม</th>
+<th class="py-4 px-md font-label-md text-label-md text-on-surface-variant font-semibold">อุปกรณ์</th>
+<th class="py-4 px-md font-label-md text-label-md text-on-surface-variant font-semibold hidden md:table-cell">วันที่ต้องการใช้</th>
+<th class="py-4 px-md font-label-md text-label-md text-on-surface-variant font-semibold hidden lg:table-cell w-1/4">เหตุผลการใช้</th>
+<th class="py-4 px-md font-label-md text-label-md text-on-surface-variant font-semibold text-right">การจัดการ</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-variant font-body-md text-body-md bg-surface-container-lowest">
+<!-- Request Row 1 -->
+<tr class="table-row-hover group">
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<img alt="User Avatar" class="w-10 h-10 rounded-full object-cover hidden sm:block" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaU8dsL6ktuxHT3LqmN6WJHH7OXdWLtzWK5H8_XYWrC0w4HKfW4doUiR4uOj_-AS9pC28-w84Jbh2pLvyXDT5SiLdzQdIWt2q-gzlM5l27ZpTGJb2sVraMFa0Zalo_CftiV15ORBJUhVTeAkIchImfbAFAizgvoxvy76Q-9qU8HxEy5mgJKupuNNZt7KclC0pX7k19Rspe7HGQY1LGaNkyyTJVM6M5mGzfuhwKRBOWa3eW52JkxAiuhqUxL-XN6j6aklL64YaJi3SN">
+<div>
+<p class="font-semibold text-on-surface">สมชาย ใจดี</p>
+<p class="text-sm text-on-surface-variant">ID: 64012345</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary hidden sm:flex">
+<span class="material-symbols-outlined">camera_alt</span>
+</div>
+<div>
+<p class="font-medium text-on-surface">กล้อง DSLR Canon EOS R5</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary text-on-primary mt-1">
+                                                EQ-CAM-001
+                                            </span>
+</div>
+</div>
+</td>
+<td class="py-4 px-md hidden md:table-cell">
+<p class="text-on-surface">15 ต.ค. 2023</p>
+<p class="text-sm text-on-surface-variant">ถึง 17 ต.ค. 2023</p>
+</td>
+<td class="py-4 px-md hidden lg:table-cell text-on-surface-variant">
+                                    ยืมไปถ่ายภาพกิจกรรมค่ายอาสาของคณะวิศวกรรมศาสตร์
+                                </td>
+<td class="py-4 px-md text-right">
+<div class="flex justify-end gap-2">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-error-container text-on-error-container hover:bg-error hover:text-white transition-colors shadow-sm" title="Reject">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary hover:brightness-110 transition-all shadow-sm active:scale-90" title="Approve">
+<span class="material-symbols-outlined">check</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Request Row 2 -->
+<tr class="table-row-hover group">
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<img alt="User Avatar" class="w-10 h-10 rounded-full object-cover hidden sm:block" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC82ljQm9lu-Z0tSxTpEVIsoV8vNx9hd6YZEKy22HLqLmUD4QRwV7UzKM92HJ6JGg4l2GbckHljxtjgEX2_p1HpDfIZlpleHhP1TfTnGYzKFO71Dy-G0vimL2I1rbt39pJ-N-Yxuw7fXB8BY0p2S1E3dUZPeSeOKHQKnUd64WuYNu-QNbbqOuK8Wli662MhHlEElFfKJTfRT4QhLI55WEG85EA7MdWyF3UAM6ocjCNPQ9UrQZkV0ECgHIb167MADi6oczQTCzn3RQgs">
+<div>
+<p class="font-semibold text-on-surface">สมหญิง รักเรียน</p>
+<p class="text-sm text-on-surface-variant">ID: 65098765</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary hidden sm:flex">
+<span class="material-symbols-outlined">mic</span>
+</div>
+<div>
+<p class="font-medium text-on-surface">ไมโครโฟนไร้สาย Rode</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary text-on-primary mt-1">
+                                                EQ-MIC-042
+                                            </span>
+</div>
+</div>
+</td>
+<td class="py-4 px-md hidden md:table-cell">
+<p class="text-on-surface">16 ต.ค. 2023</p>
+<p class="text-sm text-on-surface-variant">ถึง 16 ต.ค. 2023</p>
+</td>
+<td class="py-4 px-md hidden lg:table-cell text-on-surface-variant">
+                                    ใช้ในการนำเสนอโครงงานวิชาสัมมนาประจำปี
+                                </td>
+<td class="py-4 px-md text-right">
+<div class="flex justify-end gap-2">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-error-container text-on-error-container hover:bg-error hover:text-white transition-colors shadow-sm" title="Reject">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary hover:brightness-110 transition-all shadow-sm active:scale-90" title="Approve">
+<span class="material-symbols-outlined">check</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Request Row 3 -->
+<tr class="table-row-hover group">
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold hidden sm:flex">
+                                            น
+                                        </div>
+<div>
+<p class="font-semibold text-on-surface">นที ขยันทำ</p>
+<p class="text-sm text-on-surface-variant">ID: 63055443</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-md">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary hidden sm:flex">
+<span class="material-symbols-outlined">videocam</span>
+</div>
+<div>
+<p class="font-medium text-on-surface">ขาตั้งกล้อง Manfrotto</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary text-on-primary mt-1">
+                                                EQ-TRP-011
+                                            </span>
+</div>
+</div>
+</td>
+<td class="py-4 px-md hidden md:table-cell">
+<p class="text-on-surface">20 ต.ค. 2023</p>
+<p class="text-sm text-on-surface-variant">ถึง 22 ต.ค. 2023</p>
+</td>
+<td class="py-4 px-md hidden lg:table-cell text-on-surface-variant">
+                                    ถ่ายทำวิดีโอโปรโมทกิจกรรมชมรมกีฬา
+                                </td>
+<td class="py-4 px-md text-right">
+<div class="flex justify-end gap-2">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-error-container text-on-error-container hover:bg-error hover:text-white transition-colors shadow-sm" title="Reject">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary hover:brightness-110 transition-all shadow-sm active:scale-90" title="Approve">
+<span class="material-symbols-outlined">check</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-md py-4 border-t border-surface-variant flex justify-between items-center text-sm text-on-surface-variant bg-surface-bright">
+<span class="">แสดง 1-3 จาก 12 รายการ</span>
+<div class="flex gap-1">
+<button class="p-1 rounded hover:bg-primary/10" disabled=""><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<button class="w-7 h-7 rounded bg-primary text-on-primary font-bold flex items-center justify-center">1</button>
+<button class="w-7 h-7 rounded hover:bg-primary/10 hover:text-primary flex items-center justify-center transition-colors">2</button>
+<button class="w-7 h-7 rounded hover:bg-primary/10 hover:text-primary flex items-center justify-center transition-colors">3</button>
+<button class="p-1 rounded hover:bg-primary/10 hover:text-primary transition-colors"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+
+
+
+
+
+</body></html>

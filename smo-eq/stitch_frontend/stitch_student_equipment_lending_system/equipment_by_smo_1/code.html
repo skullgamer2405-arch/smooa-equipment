@@ -1,0 +1,281 @@
+<!DOCTYPE html><html lang="th" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Dashboard - Equipment by SMO</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#1a365d", // Dark Navy
+                        "primary": "#1a365d", // Dark Navy
+                        "on-primary": "#ffffff", // White
+                        "secondary": "#f59e0b", // Vibrant Orange
+                        "secondary-container": "#f59e0b", // Vibrant Orange
+                        "on-secondary-container": "#ffffff", // White
+                        "background": "#ffffff",
+                        "surface": "#ffffff",
+                        "surface-container": "#f8fafc",
+                        "surface-container-low": "#f1f5f9",
+                        "surface-container-high": "#e2e8f0",
+                        "surface-container-highest": "#cbd5e1",
+                        "surface-container-lowest": "#ffffff",
+                        "outline": "#64748b",
+                        "outline-variant": "#cbd5e1",
+                        "on-surface": "#0f172a",
+                        "on-surface-variant": "#475569",
+                        "error": "#ef4444",
+                        "error-container": "#fee2e2",
+                        "on-error-container": "#991b1b",
+                        "primary-fixed": "#dbeafe",
+                        "on-primary-fixed": "#1e3a8a",
+                        "secondary-fixed": "#fef3c7",
+                        "on-secondary-fixed": "#92400e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "20px",
+                        "md": "24px",
+                        "xl": "64px",
+                        "sm": "12px",
+                        "lg": "40px",
+                        "xs": "4px",
+                        "base": "8px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Prompt"],
+                        "body-lg": ["Sarabun"],
+                        "headline-lg": ["Prompt"],
+                        "headline-md": ["Prompt"],
+                        "label-md": ["Sarabun"],
+                        "headline-sm": ["Prompt"],
+                        "body-md": ["Sarabun"],
+                        "body-sm": ["Sarabun"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Sarabun', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Prompt', sans-serif; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 hidden lg:flex flex-col py-md bg-surface-container-low shadow-sm z-40 border-r border-outline-variant">
+<div class="px-6 mb-8 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+<img alt="SMO.CRA Logo" class="object-cover w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCf23KbwpBFtHoW5LWWSRXB0NnJttvDthVn2dq6OVxWSOsU88-dIt4YmWWswviKTpfU9dqFdIlg4UqkVCL1KbAb_eZrKql_EUdu83_P4Iyg03sIR4FPrBaKnUqAhsiFoYqRstgUL3PJEiIDxL_1hdadZIhD67zOgAS9VAGZ2Bi5TzkcRPkFfwUW8kI_Ji4llN3x8fvRjqF4eDgYGuAF_Eg-pPc84NJ3ewomQBPvV-_q5ngI5zDLVv1yeDFKu4W8cGnD5f4">
+</div>
+<div>
+<div class="font-headline-sm text-headline-sm font-semibold text-primary">SMO.CRA</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Equipment by SMO</div>
+</div>
+</div><div class="px-4 mb-6">
+<button class="w-full bg-secondary text-white py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+                ยืมอุปกรณ์ใหม่
+             </button>
+</div>
+<div class="flex-1 overflow-y-auto font-label-md text-label-md flex flex-col gap-2">
+<!-- Active Nav Item -->
+<a class="flex items-center gap-3 text-white rounded-xl px-4 py-3 mx-2 scale-98 duration-150 transition-all shadow-sm bg-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+                หน้าหลัก
+            </a>
+<!-- Inactive Nav Items -->
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                อุปกรณ์
+            </a><a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+                ปฏิทินการจองอุปกรณ์
+            </a>
+
+</div>
+<div class="px-4 mt-auto space-y-4 pb-4">
+<!-- Borrow New Equipment Button -->
+
+<!-- Admin System Icon at Bottom Left -->
+<div class="flex items-center">
+<a class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all flex items-center justify-center group" href="#" title="ระบบแอดมิน">
+<span class="material-symbols-outlined text-2xl group-hover:text-primary">admin_panel_settings</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-lg h-16 bg-white shadow-sm border-b border-outline-variant">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="font-headline-md text-headline-md font-bold text-primary lg:pl-0 pl-4">
+            Equipment by SMO
+        </div>
+<!-- Top Nav Items (Web) -->
+<div class="hidden md:flex flex-1 justify-center gap-8">
+<a class="text-primary font-bold border-b-2 border-secondary font-label-md text-label-md py-4 transition-colors px-4" href="#">หน้าหลัก</a>
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">อุปกรณ์</a>
+<a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">การจองของฉัน</a>
+</div>
+
+</header>
+<!-- Main Content -->
+<main class="flex-1 lg:ml-64 mt-16 p-4 md:p-8 overflow-y-auto bg-surface-container-lowest">
+<div class="max-w-[1200px] mx-auto">
+<!-- Page Header -->
+<div class="mb-8">
+<h1 class="font-headline-lg text-headline-lg text-primary mb-2">หน้าหลักอุปกรณ์</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">ค้นหาและยืมอุปกรณ์สำหรับกิจกรรมชมรมของคุณ (Equipment by SMO)</p>
+</div>
+<!-- Search & Filters Section -->
+<section class="mb-10 bg-white p-6 rounded-xl shadow-sm border border-outline-variant">
+<div class="flex flex-col md:flex-row gap-4 items-center mb-6">
+<!-- Search Bar -->
+<div class="relative w-full flex-1">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-12 pr-4 py-3 rounded-lg border-outline-variant bg-surface-container-lowest focus:ring-2 focus:ring-secondary focus:border-secondary font-body-md text-body-md transition-all" placeholder="ค้นหาชื่ออุปกรณ์, รหัส..." type="text">
+</div>
+</div>
+<!-- Category Filters -->
+<div class="flex flex-wrap gap-3"><button class="px-5 py-2 rounded-full bg-primary text-white font-label-md text-label-md shadow-sm hover:opacity-95 transition-opacity">ทั้งหมด</button>
+<button class="px-5 py-2 rounded-full border border-outline-variant text-on-surface-variant bg-white hover:bg-surface-container-low font-label-md text-label-md transition-colors flex items-center gap-2">
+    <span class="material-symbols-outlined text-sm">sports_soccer</span>กีฬา
+</button>
+<button class="px-5 py-2 rounded-full border border-outline-variant text-on-surface-variant bg-white hover:bg-surface-container-low font-label-md text-label-md transition-colors flex items-center gap-2">
+    <span class="material-symbols-outlined text-sm">category</span>อุปกรณ์จิปาถะ
+</button>
+<button class="px-5 py-2 rounded-full border border-outline-variant text-on-surface-variant bg-white hover:bg-surface-container-low font-label-md text-label-md transition-colors flex items-center gap-2">
+    <span class="material-symbols-outlined text-sm">inventory</span>ครุภัณฑ์
+</button></div>
+</section>
+<!-- Inventory Grid -->
+<section>
+<div class="flex justify-between items-end mb-6">
+<h2 class="font-headline-md text-headline-md text-primary">รายการอุปกรณ์ทั้งหมด</h2>
+<span class="font-body-sm text-body-sm text-on-surface-variant">แสดง 24 รายการ</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+<!-- Item Card 1: Available -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden hover:shadow-md transition-all duration-300 group flex flex-col">
+<div class="relative h-48 w-full bg-surface-container-low">
+<img alt="Camera DSLR" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" data-alt="A high-end DSLR camera body with a professional lens attached, sitting on a clean white studio background. Product photography style, sharp focus, neutral lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6_NhDMpyQxDz52yTQBsGwiuqXrvqvGcFQW7apabBFcQn3165d7aBAQGZz38Tv7gKJnbDzjgNmVxM8J6XNU2V2LLcP6pZaWlgn9NrNdNMF0fnpqvpq7TPsM3kJDso7uaWGazy6GaSO7li6i0yze-iyK7Z975Nr66_PC0PcpPwVdpR08axmuyhGOC5owQq1wp39iuiLzipWKLMTLnNl3_uyRSXJYl-Wn-suaHTQ04iordsjiCr7B_57lACJr_Z31X3MoHiT04xH3oaC">
+<div class="absolute top-3 right-3 bg-secondary text-white font-label-md text-label-md px-3 py-1 rounded-full shadow-sm">
+                                ว่าง
+                            </div>
+</div>
+<div class="p-5 flex-1 flex flex-col">
+<div class="font-body-sm text-body-sm text-outline mb-1">CAM-001</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2">กล้อง DSLR Canon EOS R5</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm mb-4">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span class="">หมวดหมู่: กล้อง</span>
+</div>
+<button class="mt-auto w-full bg-primary text-white py-2.5 rounded-lg font-label-md text-label-md hover:bg-opacity-90 transition-colors shadow-sm">
+                                จองตอนนี้
+                            </button>
+</div>
+</div>
+<!-- Item Card 2: Unavailable -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden hover:shadow-sm transition-all duration-300 group flex flex-col opacity-80">
+<div class="relative h-48 w-full bg-surface-container-low">
+<img alt="Wireless Mic" class="object-cover w-full h-full grayscale-[30%]" data-alt="A professional wireless microphone system, neatly arranged on a bright white surface. Corporate tech aesthetic, clean shadows, high resolution product shot." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCt6jG6Vb8z-1n6caEVCqJB2W8TYmSqGnLeFvK2tPeiUAlcpDoa3qD9najDZTnzokhDpq9hSlUigkB3XBK1IRqKqVF3epC_qSVAzaRstDVt_JZ4xkdYC9rNiTsHiPkscTDNb024t26PJOqn_5vg3AStCg2RYbrJWGQXbghqfl1VV528WIs9lAhcaojOE6x2JK8QOxP2FPN6JCmuIoIRSvU4LpeAbElvYMY7fQ5hQ4RvTxAAdhImXqRtzKtqMSLtdmpsGWMbrsZAlMAt">
+<div class="absolute top-3 right-3 bg-error-container text-on-error-container font-label-md text-label-md px-3 py-1 rounded-full shadow-sm">
+                                ไม่ว่าง
+                            </div>
+</div>
+<div class="p-5 flex-1 flex flex-col">
+<div class="font-body-sm text-body-sm text-outline mb-1">MIC-012</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2">ไมค์ลอยไร้สาย Rode Wireless GO II</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm mb-4">
+<span class="material-symbols-outlined text-[18px]">mic</span>
+<span class="">กำหนดคืน: 15 พ.ย. 66</span>
+</div>
+<button class="mt-auto w-full border border-outline-variant text-outline py-2.5 rounded-lg font-label-md text-label-md cursor-not-allowed bg-surface-container-low" disabled="">
+                                จองตอนนี้
+                            </button>
+</div>
+</div>
+<!-- Item Card 3: Available -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden hover:shadow-md transition-all duration-300 group flex flex-col">
+<div class="relative h-48 w-full bg-surface-container-low">
+<img alt="LED Light" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" data-alt="A high-powered LED video light panel set up on a stand, illuminated against a clean, light studio background. Modern, sleek design, professional photography gear." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdbvJHJV-JFBftTddTFm67YIQuesOJHlM6EHrVzCCoT4Ywl70xPCTslw_dsEpWn6sg6Y67v2nPuUFjUpRdNOx0VOtIaf1I8tScqA3vDQhPYXZerCVsuLPH-Hlg7lLZfEub-zaQSx4DcKGQA9FOJC9t9WaRZ05hmL5tpl2--WU3nC7xZb1qKJyNxPBidsQscvyr-afTANXk3zLlfjJWQjA8tpD5XFpw-CDCylCWX86jc9ovr0YWsjlSq9fEP2f9ufMPMZX5vBhaf858">
+<div class="absolute top-3 right-3 bg-secondary text-white font-label-md text-label-md px-3 py-1 rounded-full shadow-sm">
+                                ว่าง
+                            </div>
+</div>
+<div class="p-5 flex-1 flex flex-col">
+<div class="font-body-sm text-body-sm text-outline mb-1">LIT-004</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2">ไฟสตูดิโอ LED Panel 100W</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm mb-4">
+<span class="material-symbols-outlined text-[18px]">lightbulb</span>
+<span class="">หมวดหมู่: ไฟ</span>
+</div>
+<button class="mt-auto w-full bg-primary text-white py-2.5 rounded-lg font-label-md text-label-md hover:bg-opacity-90 transition-colors shadow-sm">
+                                จองตอนนี้
+                            </button>
+</div>
+</div>
+<!-- Item Card 4: Available -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden hover:shadow-md transition-all duration-300 group flex flex-col">
+<div class="relative h-48 w-full bg-surface-container-low">
+<img alt="Laptop" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" data-alt="A sleek, modern high-performance laptop closed on a clean desk surface. Silver metallic finish, bright lighting, corporate technology style, top-down view." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0xVpXIWa-OgZXnysuWlkL1jl4SuAi0-gbZZobe11g2h2hC6EN0DTwm3_3NO37s2rPa52ZNjUUTUCwcae4-uo3wgAfnVchTjsoHAx-mz0w6mVrAxgZHS7a4AuXdobqepOXEGSGmyCB58pP1NzTnRRJzrEnCLZdHqgDMR5Uz2rjYN3MhnlkEmlUBwWwRN0QFDNAkoAWPjR-anZ1VRj-U-DWn3u6DdzThCj_KpX-ZFerNJeDh3kGOq_0-KsajtH5NKgDtfIwr84inpus">
+<div class="absolute top-3 right-3 bg-secondary text-white font-label-md text-label-md px-3 py-1 rounded-full shadow-sm">
+                                ว่าง
+                            </div>
+</div>
+<div class="p-5 flex-1 flex flex-col">
+<div class="font-body-sm text-body-sm text-outline mb-1">COM-022</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2">MacBook Pro 16" M2 Max</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm mb-4">
+<span class="material-symbols-outlined text-[18px]">computer</span>
+<span class="">หมวดหมู่: คอมพิวเตอร์</span>
+</div>
+<button class="mt-auto w-full bg-primary text-white py-2.5 rounded-lg font-label-md text-label-md hover:bg-opacity-90 transition-colors shadow-sm">
+                                จองตอนนี้
+                            </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+
+
+
+
+
+
+
+
+
+</body></html>

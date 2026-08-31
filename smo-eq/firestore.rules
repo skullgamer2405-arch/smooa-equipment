@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // Helper functions
+    // ============================================
+
+    // ตรวจว่า user เป็น authenticated admin
+    function isAdmin() {
+      return request.auth != null;
+    }
+
+    // ตรวจ string field ว่ามีค่าและไม่เกิน maxLen
+    function validStr(field, maxLen) {
+      return field is string && field.size() > 0 && field.size() <= maxLen;
+    }
+
+    // ============================================
+    // Equipment Collection
+    // - Read: anyone (public catalog)
+    // - Write: authenticated admin only
+    // ============================================
+    match /equipment/{equipmentId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['title', 'assetCode', 'status', 'createdAt'])
+        && validStr(request.resource.data.title, 200)
+        && validStr(request.resource.data.assetCode, 50)
+        && request.resource.data.status in ['available', 'unavailable', 'maintenance'];
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // Bookings Collection
+    // - Create: anyone (students submit borrow requests)
+    //   แต่ต้องกรอก fields ครบและ status ต้องเป็น pending
+    // - Read/Update/Delete: authenticated admin only
+    // ============================================
+    match /bookings/{bookingId} {
+      allow create: if true
+        // ตรวจ required fields ครบถ้วน
+        && request.resource.data.keys().hasAll([
+            'equipmentId', 'assetCode', 'equipmentName',
+            'fullName', 'studentId', 'faculty', 'department',
+            'startDate', 'endDate', 'activityName', 'reason',
+            'status', 'createdAt'
+          ])
+        // ตรวจ status ต้องเป็น pending เท่านั้น
+        && request.resource.data.status == 'pending'
+        // ตรวจความยาว string fields
+        && validStr(request.resource.data.fullName, 200)
+        && validStr(request.resource.data.studentId, 20)
+        && validStr(request.resource.data.faculty, 200)
+        && validStr(request.resource.data.department, 200)
+        && validStr(request.resource.data.equipmentName, 200)
+        && validStr(request.resource.data.assetCode, 50)
+        && validStr(request.resource.data.activityName, 300)
+        && validStr(request.resource.data.reason, 1000)
+        // ตรวจวันที่: startDate ต้องไม่เกิน endDate
+        && request.resource.data.startDate <= request.resource.data.endDate;
+
+      // Public can read bookings for stats/calendar; Admins can manage all
+      allow read: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // Calendar Entries Collection (admin-managed)
+    // - Read: anyone
+    // - Write: authenticated admin only
+    // ============================================
+    match /calendarEntries/{entryId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['date', 'activityName', 'createdAt'])
+        && validStr(request.resource.data.activityName, 300);
+      allow update, delete: if isAdmin();
+    }
+
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

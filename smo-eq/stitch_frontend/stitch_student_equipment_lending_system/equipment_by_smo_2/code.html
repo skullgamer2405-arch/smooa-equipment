@@ -1,0 +1,245 @@
+<!DOCTYPE html><html lang="th" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>แบบฟอร์มการจองอุปกรณ์ - Equipment by SMO</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline": "#74777f",
+                        "on-background": "#1a1c1e",
+                        "on-tertiary-fixed-variant": "#633f0f",
+                        "primary-container": "#1a365d",
+                        "on-secondary-container": "#452b00",
+                        "secondary": "#f59e0b",
+                        "tertiary": "#321b00",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed-variant": "#6d3a00",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#001b3c",
+                        "surface-variant": "#e3e2e6",
+                        "on-surface-variant": "#43474e",
+                        "inverse-primary": "#adc7f7",
+                        "secondary-container": "#f59e0b",
+                        "outline-variant": "#c4c6cf",
+                        "surface": "#ffffff",
+                        "surface-container": "#f4f3f7",
+                        "inverse-surface": "#2f3033",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#f2bc82",
+                        "tertiary-container": "#4f2e00",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#ffdcc2",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#2b1700",
+                        "surface-container-high": "#e9e7eb",
+                        "secondary-fixed-dim": "#ffb77a",
+                        "tertiary-fixed": "#ffddba",
+                        "on-secondary-fixed": "#2e1500",
+                        "surface-tint": "#1a365d",
+                        "surface-container-highest": "#e3e2e6",
+                        "primary": "#1a365d",
+                        "on-primary-container": "#ffffff",
+                        "surface-dim": "#dad9dd",
+                        "primary-fixed-dim": "#adc7f7",
+                        "inverse-on-surface": "#f1f0f4",
+                        "primary-fixed": "#d6e3ff",
+                        "on-error-container": "#93000a",
+                        "background": "#f8fafc",
+                        "on-surface": "#1a1c1e",
+                        "surface-container-low": "#f4f3f7",
+                        "on-tertiary-container": "#c6955e",
+                        "surface-bright": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1200px",
+                        "lg": "40px",
+                        "base": "8px",
+                        "sm": "12px",
+                        "md": "24px",
+                        "xl": "64px",
+                        "gutter": "20px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Prompt"],
+                        "headline-sm": ["Prompt"],
+                        "body-lg": ["Sarabun"],
+                        "label-md": ["Sarabun"],
+                        "body-sm": ["Sarabun"],
+                        "headline-lg-mobile": ["Prompt"],
+                        "headline-lg": ["Prompt"],
+                        "body-md": ["Sarabun"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen antialiased">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-lg h-16 shadow-sm bg-surface"><div class="flex items-center gap-4 lg:hidden"><button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full"><span class="material-symbols-outlined">menu</span></button></div><div class="font-headline-md text-headline-md font-bold text-primary lg:pl-0 pl-4">Equipment by SMO</div><div class="hidden md:flex flex-1 justify-center gap-8"><a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">หน้าหลัก</a><a class="text-primary font-bold border-b-2 border-secondary font-label-md text-label-md py-4 transition-colors px-4" href="#">อุปกรณ์</a><a class="text-on-surface-variant font-label-md text-label-md py-4 hover:text-primary transition-colors px-4" href="#">การจองของฉัน</a></div></header>
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 hidden lg:flex flex-col py-md bg-surface-container-low shadow-sm z-40 border-r border-outline-variant"><div class="px-6 mb-8 flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center overflow-hidden"><img alt="โลโก้ชมรม" class="object-cover w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAf1Uu79Br-1e2l71VmZdVMrI_oTXiYkLrRjQEO8nJN1Jnyds_JeegNqumxk-4PiCC1qY4yDgx20lXCrqYUHwVTnYVquWcsbwBrUhaSWdoC5U9aYiGs4ocaDRYawWPJV-CN0_Bfs99rbcZel-yo0sJJX9KAijgcYHmpQWEQBUhEvWjYNNGcVo-ypzJsFl-98wg1HKNq5ECR20CFJTjm_nM5LVXh9WnrAfThfjsSnsUBS5PXH_Ys8f0jelZGYRST9o5sT5M"></div><div><div class="font-headline-sm text-headline-sm font-semibold text-primary">SMO.CRA</div><div class="font-body-sm text-body-sm text-on-surface-variant">Equipment by SMO</div></div></div><div class="px-4 mb-6"><button class="w-full text-white py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm"><span class="material-symbols-outlined">add</span> ยืมอุปกรณ์ใหม่ </button></div><div class="flex-1 overflow-y-auto font-label-md text-label-md flex flex-col gap-2"><a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#"><span class="material-symbols-outlined">home</span> หน้าหลัก </a><a class="flex items-center gap-3 text-white rounded-xl px-4 py-3 mx-2 scale-98 duration-150 transition-all shadow-sm bg-primary" href="#"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span> อุปกรณ์ </a><a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl px-4 py-3 mx-2 transition-all" href="#"><span class="material-symbols-outlined">calendar_month</span> ปฏิทินการจองอุปกรณ์ </a></div><div class="px-4 mt-auto space-y-4 pb-4"><div class="flex items-center"><a class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all flex items-center justify-center group" href="#" title="ระบบแอดมิน"><span class="material-symbols-outlined text-2xl group-hover:text-primary">admin_panel_settings</span></a></div></div></nav>
+<!-- Main Content Canvas -->
+<main class="pt-[80px] lg:pl-64 min-h-screen pb-lg">
+<div class="max-w-[1200px] mx-auto px-lg lg:px-lg">
+<!-- Header Section -->
+<div class="flex items-center gap-sm mb-lg py-sm">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-headline-lg text-headline-lg text-primary">กรอกรายละเอียดการจองอุปกรณ์</h1>
+</div>
+<!-- Main Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg items-start">
+<!-- Left Column: Equipment Info & Form -->
+<div class="lg:col-span-2 space-y-md">
+<!-- Equipment Info Card -->
+<div class="bg-surface rounded-xl p-md border border-surface-container shadow-sm flex flex-col sm:row gap-md items-start sm:flex-row">
+<div class="w-full sm:w-48 h-48 bg-surface-container rounded-lg overflow-hidden shrink-0 shadow-inner relative">
+<img alt="Canon EOS R5" class="w-full h-full object-cover" data-alt="A pristine, high-end Canon EOS R5 DSLR camera resting on a clean white minimal studio surface. Crisp, even lighting highlighting the camera's textures and branding. Corporate modern aesthetic, sharp focus, isolated subject." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOPsd1EwX_44ecus8eCniBNMOsfCJpQxxKkhWa8XwkCT4xaQwnEXhHsZZ4kagIqpGVI6uBpKve9ziiR8Z3YN8UZnRwMNKM0MbkTrXYKt2JECKW8J9ANFJkqKkFhG7BMBZLyz3ZGr-j2tjw-N9_3CP2qhCXs6SKe93-VmE86qTcMKTZ4mw3h6MKeJibSDLFNv37vRNjnUaRO2ApE86-gVg0uBrq0EyqP7CsKinRUu4RH9-JET_clZw1CgBHtcwo8915ten6KDlplOjm">
+<div class="absolute top-sm right-sm bg-[#e6f4ea] text-[#137333] px-2 py-1 rounded-md flex items-center gap-1 font-label-md text-[12px]">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> ว่าง
+                            </div>
+</div>
+<div class="flex-1 flex flex-col justify-between h-full py-xs">
+<div>
+<div class="font-label-md text-label-md text-on-surface-variant mb-1">หมวดหมู่: กล้องดิจิทัล</div>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-2">กล้อง DSLR Canon EOS R5</h2>
+<div class="font-body-md text-body-md text-outline mb-md">รหัสอุปกรณ์: <span class="font-semibold text-primary">CAM-001</span></div>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant bg-background px-3 py-2 rounded-md border border-surface-container">
+<span class="material-symbols-outlined text-[16px] inline-block align-text-bottom mr-1">info</span>
+                                โปรดตรวจสอบสภาพอุปกรณ์ก่อนนำออกจากห้องชมรม
+                            </div>
+</div>
+</div>
+<!-- Booking Form Container -->
+<div class="bg-surface rounded-xl p-md lg:p-lg border border-surface-container shadow-sm">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-md border-b border-surface-variant pb-sm">ข้อมูลการจอง</h3>
+<form class="space-y-md">
+<!-- 1. ชื่อ-นามสกุล -->
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">ชื่อ-นามสกุล <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="ระบุชื่อ-นามสกุล..." type="text">
+</div>
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">รหัสนักศึกษา <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="ระบุรหัสนักศึกษา..." type="text">
+</div><div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">คณะ <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="ระบุคณะ..." type="text">
+</div>
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">สาขา <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="ระบุสาขาวิชา..." type="text">
+</div>
+</div>
+<!-- 2 & 3. วันที่เริ่มใช้ และ วันที่สิ้นสุด -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">วันที่เริ่มใช้ <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" type="date">
+</div>
+</div>
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">วันที่สิ้นสุด <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" type="date">
+</div>
+</div>
+</div>
+<!-- 4. ชื่อกิจกรรม/โครงการที่เกี่ยวข้อง -->
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">ชื่อกิจกรรม/โครงการที่เกี่ยวข้อง <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="ระบุชื่อโครงการ..." type="text">
+</div>
+<!-- 5. เหตุผลการใช้งาน -->
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">สังกัด <span class="text-error">*</span></label>
+<input class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="เช่น ชมรม คณะ..." type="text" required="required">
+</div><div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface">เหตุผลการใช้งาน <span class="text-error">*</span></label>
+<textarea class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all resize-none" placeholder="อธิบายวัตถุประสงค์ในการยืมอุปกรณ์สั้นๆ..." rows="3"></textarea>
+</div>
+</form>
+</div>
+</div>
+<!-- Right Column: Summary Sidebar -->
+<div class="lg:col-span-1">
+<div class="sticky top-24 bg-surface rounded-xl p-md border border-surface-container shadow-md">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-md">สรุปการทำรายการ</h3>
+<div class="space-y-sm mb-lg">
+<div class="flex justify-between items-start font-body-sm text-body-sm pb-sm border-b border-surface-container">
+<span class="text-on-surface-variant">อุปกรณ์:</span>
+<span class="font-medium text-on-surface text-right w-2/3 truncate">กล้อง DSLR Canon EOS R5</span>
+</div>
+<div class="flex justify-between items-start font-body-sm text-body-sm pb-sm border-b border-surface-container">
+<span class="text-on-surface-variant">รหัส:</span>
+<span class="font-medium text-on-surface">CAM-001</span>
+</div>
+<div class="flex justify-between items-start font-body-sm text-body-sm pb-sm border-b border-surface-container">
+<span class="text-on-surface-variant">ระยะเวลา:</span>
+<span class="font-medium text-on-surface text-right">-</span>
+</div>
+</div>
+<!-- Terms and Conditions -->
+<div class="mb-md bg-surface-container-low p-sm rounded-lg">
+<label class="flex items-start gap-3 cursor-pointer group">
+<input class="mt-1 rounded text-primary focus:ring-primary border-outline-variant h-4 w-4" type="checkbox">
+<span class="font-body-sm text-body-sm text-on-surface-variant leading-tight">
+                                    ข้าพเจ้ายอมรับ <a class="text-primary hover:underline font-medium" href="#">ข้อตกลงและเงื่อนไข</a> ในการยืมอุปกรณ์ และจะรับผิดชอบหากเกิดความเสียหาย
+                                </span>
+</label>
+</div>
+<!-- CTA Button -->
+<button class="w-full bg-secondary hover:opacity-90 text-on-secondary font-headline-md text-body-md py-4 rounded-lg shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 font-bold">
+                            ยืนยันการส่งคำขอจอง
+                            <span class="material-symbols-outlined">send</span>
+</button>
+<p class="text-center font-body-sm text-[12px] text-outline mt-sm">คำขอจะถูกส่งไปยังแอดมินเพื่ออนุมัติ</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>
