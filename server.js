@@ -14,11 +14,16 @@ import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 if (!getApps().length) {
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      // รองรับ inject JSON string ตรงๆ ผ่าน env (สำหรับ Cloud Run secrets)
+      // รองรับ inject JSON string ตรงๆ ผ่าน env
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       initializeApp({ credential: cert(serviceAccount) });
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64) {
+      // รองรับ base64-encoded JSON (ใช้เมื่อ JSON มี special chars ใน env var)
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64, 'base64').toString('utf8');
+      const serviceAccount = JSON.parse(decoded);
+      initializeApp({ credential: cert(serviceAccount) });
     } else {
-      // Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS file path)
+      // Application Default Credentials (Cloud Run ADC หรือ GOOGLE_APPLICATION_CREDENTIALS)
       initializeApp();
     }
     console.log('[Firebase Admin] Initialized successfully.');
