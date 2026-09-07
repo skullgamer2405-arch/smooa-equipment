@@ -196,8 +196,9 @@
                         <!-- อีเมล + เบอร์โทร (สำหรับรับแจ้งเตือนเมื่ออนุมัติ) -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
                             <div class="space-y-sm">
-                                <label class="block font-label-md text-label-md text-on-surface">อีเมล <span class="text-gray-400 font-normal text-xs">(รับแจ้งเตือนเมื่ออนุมัติ)</span></label>
-                                <input id="applicant-email" class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="example@email.com" type="email">
+                                <label class="block font-label-md text-label-md text-on-surface">อีเมล <span class="text-error">*</span></label>
+                                <input id="applicant-email" class="w-full rounded-md border-outline-variant text-on-surface bg-background px-4 py-3 font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm outline-none transition-all" placeholder="example@email.com" type="email" required>
+                                <p class="text-xs text-on-surface-variant font-['Sarabun']">ใช้รับการแจ้งเตือนเมื่อคำขอได้รับการอนุมัติหรือปฏิเสธ</p>
                             </div>
                             <div class="space-y-sm">
                                 <label class="block font-label-md text-label-md text-on-surface">เบอร์โทรศัพท์ <span class="text-gray-400 font-normal text-xs">(ไม่บังคับ)</span></label>

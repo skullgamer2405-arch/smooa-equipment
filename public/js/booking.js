@@ -263,6 +263,11 @@ function validateForm() {
   if (!studentIdInput?.value.trim())
     errors.push('กรุณากรอกรหัสนักศึกษา');
 
+  if (!applicantEmailInput?.value.trim())
+    errors.push('กรุณากรอกอีเมลเพื่อรับการแจ้งเตือน');
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicantEmailInput.value.trim()))
+    errors.push('รูปแบบอีเมลไม่ถูกต้อง (เช่น example@email.com)');
+
   if (!facultyInput?.value.trim())
     errors.push('กรุณากรอกคณะ');
 
