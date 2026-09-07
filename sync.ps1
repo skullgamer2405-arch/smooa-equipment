@@ -21,19 +21,30 @@ Write-Host "║    SMO Equipment — GitHub Sync Tool              ║" -Foregro
 Write-Host "║    ระบบยืม-คืนอุปกรณ์ สโมสรนักศึกษา             ║" -ForegroundColor Blue
 Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Blue
 
-# ─── Check Git ─────────────────────────────────────────────
+# ─── Find Git ──────────────────────────────────────────────
 Write-Header "🔍 ตรวจสอบ Git..."
-try {
-    $gitVersion = git --version 2>&1
-    Write-Success "พบ Git: $gitVersion"
-} catch {
+$gitPaths = @(
+    "C:\Users\SCI\AppData\Local\Programs\Git\cmd\git.exe",
+    "C:\Program Files\Git\cmd\git.exe",
+    "C:\Program Files (x86)\Git\cmd\git.exe"
+)
+$gitExe = $gitPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $gitExe) {
+    # fallback: ลองจาก PATH
+    try { $gitExe = (Get-Command git -ErrorAction Stop).Source } catch {}
+}
+
+if (-not $gitExe) {
     Write-Error "ไม่พบ Git — กรุณาติดตั้ง Git ก่อน: https://git-scm.com/download/win"
     exit 1
 }
+Write-Success "พบ Git: $gitExe"
+function Invoke-Git { & $gitExe @args }
 
 # ─── Check Git Status ──────────────────────────────────────
 Write-Header "📂 สถานะไฟล์ที่เปลี่ยนแปลง..."
-$status = git status --porcelain 2>&1
+$status = Invoke-Git status --porcelain 2>&1
 
 if (-not $status) {
     Write-Warning "ไม่มีการเปลี่ยนแปลงใดๆ ที่ต้อง sync"
@@ -67,12 +78,12 @@ Write-Info "Commit message: `"$Message`""
 
 # ─── Git Add ───────────────────────────────────────────────
 Write-Header "➕ เพิ่มไฟล์ทั้งหมด (git add -A)..."
-git add -A 2>&1 | ForEach-Object { Write-Info $_ }
+Invoke-Git add -A 2>&1 | ForEach-Object { Write-Info $_ }
 Write-Success "เพิ่มไฟล์เรียบร้อย"
 
 # ─── Git Commit ────────────────────────────────────────────
 Write-Header "📝 Commit การเปลี่ยนแปลง..."
-$commitOutput = git commit -m $Message 2>&1
+$commitOutput = Invoke-Git commit -m $Message 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Success "Commit เรียบร้อย"
     $commitOutput | ForEach-Object { Write-Info $_ }
@@ -84,15 +95,15 @@ if ($LASTEXITCODE -eq 0) {
 
 # ─── Git Push ──────────────────────────────────────────────
 Write-Header "🚀 Push ขึ้น GitHub..."
-$pushOutput = git push origin main 2>&1
+$pushOutput = Invoke-Git push origin master:main 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Success "Push เรียบร้อยแล้ว! 🎉"
     $pushOutput | ForEach-Object { Write-Info $_ }
 } else {
-    # ลอง pull แล้ว push ใหม่
+    # ลอง pull --rebase แล้ว push ใหม่
     Write-Warning "Push ล้มเหลว — กำลังลอง pull แล้ว push ใหม่..."
-    git pull origin main --rebase 2>&1 | ForEach-Object { Write-Info $_ }
-    $pushOutput2 = git push origin main 2>&1
+    Invoke-Git pull origin main --rebase 2>&1 | ForEach-Object { Write-Info $_ }
+    $pushOutput2 = Invoke-Git push origin master:main 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Push เรียบร้อยแล้ว! 🎉"
     } else {
