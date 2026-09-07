@@ -10,6 +10,12 @@ import {
   serverTimestamp, onSnapshot, onAuthStateChanged
 } from './firebase-config.js';
 import { initLoginForm } from './auth.js';
+import {
+  sendBorrowerApprovalNotification,
+  sendBorrowerRejectionNotification,
+  getEmailWebhookUrl,
+  setEmailWebhookUrl
+} from './email-service.js';
 
 // ---- State ----
 let pendingBookings = [];
@@ -38,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initEquipmentModal();
   initEquipmentListDelegation();
   initExcelImport();
+  initEmailWebhookSettings();
 });
 
 // Cleanup เมื่อออกจากหน้า
@@ -492,24 +499,20 @@ async function handleApprove(bookingId, btn) {
           });
         }
 
-        // ส่ง email แจ้งผู้ยืมว่าได้รับการอนุมัติ
+        // ส่ง email แจ้งผู้ยืมว่าได้รับการอนุมัติ (Google Apps Script Webhook หรือ Backend)
         if (bookingData.applicantEmail) {
           try {
             const startDate = bookingData.startDate?.toDate ? bookingData.startDate.toDate() : new Date(bookingData.startDate);
             const endDate   = bookingData.endDate?.toDate   ? bookingData.endDate.toDate()   : new Date(bookingData.endDate);
-            await fetch('/api/notify-borrower-approved', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                bookingId:     bookingId,
-                equipmentName: bookingData.equipmentName || '',
-                equipmentCode: bookingData.assetCode     || '',
-                fullName:      bookingData.fullName      || '',
-                applicantEmail: bookingData.applicantEmail,
-                activityName:  bookingData.activityName  || '',
-                startDate:     startDate.toLocaleDateString('th-TH'),
-                endDate:       endDate.toLocaleDateString('th-TH')
-              })
+            await sendBorrowerApprovalNotification({
+              bookingId:     bookingId,
+              equipmentName: bookingData.equipmentName || '',
+              equipmentCode: bookingData.assetCode     || '',
+              fullName:      bookingData.fullName      || '',
+              applicantEmail: bookingData.applicantEmail,
+              activityName:  bookingData.activityName  || '',
+              startDate:     startDate.toLocaleDateString('th-TH'),
+              endDate:       endDate.toLocaleDateString('th-TH')
             });
           } catch (notifErr) {
             console.warn('[Notify Borrower Approved] Failed:', notifErr);
@@ -574,18 +577,14 @@ async function handleReject(bookingId, btn) {
           rejectedAt: serverTimestamp()
         });
 
-        // ส่ง email แจ้งผู้ยืมว่าไม่ได้รับการอนุมัติ
+        // ส่ง email แจ้งผู้ยืมว่าไม่ได้รับการอนุมัติ (Google Apps Script Webhook หรือ Backend)
         if (bookingSnap.data().applicantEmail) {
           try {
-            await fetch('/api/notify-borrower-rejected', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                equipmentName: bookingSnap.data().equipmentName || '',
-                fullName:      bookingSnap.data().fullName      || '',
-                applicantEmail: bookingSnap.data().applicantEmail,
-                adminNote:     reason || ''
-              })
+            await sendBorrowerRejectionNotification({
+              equipmentName: bookingSnap.data().equipmentName || '',
+              fullName:      bookingSnap.data().fullName      || '',
+              applicantEmail: bookingSnap.data().applicantEmail,
+              adminNote:     reason || ''
             });
           } catch (notifErr) {
             console.warn('[Notify Borrower Rejected] Failed:', notifErr);
@@ -1388,3 +1387,98 @@ function downloadExcelTemplate() {
   URL.revokeObjectURL(url);
   showToast('ดาวน์โหลด Template เรียบร้อยแล้ว', 'success');
 }
+
+// ============================================
+// Email Webhook Settings
+// ============================================
+
+/**
+ * Initialize Email Webhook Settings UI and event handlers
+ */
+function initEmailWebhookSettings() {
+  const inputEl    = document.getElementById('email-webhook-input');
+  const saveBtn    = document.getElementById('save-webhook-btn');
+  const testBtn    = document.getElementById('test-webhook-btn');
+  const badgeEl    = document.getElementById('webhook-status-badge');
+
+  if (!inputEl || !saveBtn) return;
+
+  // โหลดค่าเดิมที่เคยบันทึกไว้
+  const currentUrl = getEmailWebhookUrl();
+  if (currentUrl) {
+    inputEl.value = currentUrl;
+    updateBadge(true);
+  } else {
+    updateBadge(false);
+  }
+
+  function updateBadge(isConfigured) {
+    if (!badgeEl) return;
+    if (isConfigured) {
+      badgeEl.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 font-[\'Prompt\'] inline-flex items-center gap-1 self-start sm:self-auto';
+      badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> เชื่อมต่อแล้ว';
+    } else {
+      badgeEl.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 font-[\'Prompt\'] inline-flex items-center gap-1 self-start sm:self-auto';
+      badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-gray-400"></span> ยังไม่ได้ตั้งค่า';
+    }
+  }
+
+  // บันทึก URL
+  saveBtn.addEventListener('click', () => {
+    const url = inputEl.value.trim();
+    if (url && !url.startsWith('https://script.google.com/')) {
+      showToast('URL ควรเริ่มต้นด้วย https://script.google.com/', 'warning');
+    }
+    setEmailWebhookUrl(url);
+    updateBadge(!!url);
+    showToast(url ? 'บันทึก URL ระบบส่งอีเมลเรียบร้อยแล้ว' : 'ล้างการตั้งค่าเรียบร้อย', 'success');
+  });
+
+  // ทดสอบส่งอีเมล
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      const url = inputEl.value.trim();
+      if (!url) {
+        showToast('กรุณากรอก URL ก่อนทดสอบ', 'error');
+        inputEl.focus();
+        return;
+      }
+
+      testBtn.disabled = true;
+      testBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> กำลังส่ง...';
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'notify-admin-booking',
+            equipmentName: 'อุปกรณ์ทดสอบระบบ',
+            equipmentCode: 'TEST-001',
+            fullName: 'ผู้ทดสอบระบบ',
+            studentId: '9999999999',
+            faculty: 'ทดสอบ',
+            department: 'ระบบแจ้งเตือน',
+            affiliation: 'SMO.CRA',
+            startDate: new Date().toLocaleDateString('th-TH'),
+            endDate: new Date().toLocaleDateString('th-TH'),
+            activityName: 'ทดสอบการส่งอีเมล Webhook',
+            reason: 'ทดสอบการทำงานของระบบ Google Apps Script',
+            applicantEmail: 'test@example.com',
+            applicantPhone: '081-234-5678'
+          }),
+          mode: 'no-cors'
+        });
+
+        showToast('ส่งคำขอทดสอบไปยัง Google Apps Script แล้ว! กรุณาตรวจสอบกล่องจดหมายแอดมิน', 'success');
+      } catch (err) {
+        console.error('Test email error:', err);
+        showToast('การส่งทดสอบล้มเหลว: ' + err.message, 'error');
+      } finally {
+        testBtn.disabled = false;
+        testBtn.innerHTML = '<span class="material-symbols-outlined text-sm">send</span> ทดสอบส่ง';
+      }
+    });
+  }
+}
+

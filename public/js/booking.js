@@ -8,6 +8,7 @@ import {
   collection, doc, getDoc, addDoc,
   Timestamp, serverTimestamp
 } from './firebase-config.js';
+import { sendAdminBookingNotification } from './email-service.js';
 
 // ---- DOM Elements ----
 const bookingForm     = document.getElementById('booking-form');
@@ -215,27 +216,23 @@ async function handleSubmit() {
 
     const newDocRef = await addDoc(collection(db, 'bookings'), bookingData);
 
-    // Send admin email notification via backend API
+    // Send admin email notification (Google Apps Script Webhook or Backend)
     try {
-      await fetch('/api/notify-admin-booking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId:     newDocRef.id,
-          equipmentName: currentEquipment.title || '',
-          equipmentCode: currentEquipment.assetCode || '',
-          fullName:      fullNameInput.value.trim(),
-          studentId:     studentIdInput.value.trim(),
-          faculty:       facultyInput?.value.trim() || '',
-          department:    departmentInput?.value.trim() || '',
-          affiliation:   affiliationInput?.value.trim() || '',
-          startDate:     startDateInput.value,
-          endDate:       endDateInput.value,
-          activityName:  activityNameInput.value.trim(),
-          reason:        reasonInput.value.trim(),
-          applicantEmail: applicantEmailInput?.value.trim() || '',
-          applicantPhone: applicantPhoneInput?.value.trim() || ''
-        })
+      await sendAdminBookingNotification({
+        bookingId:     newDocRef.id,
+        equipmentName: currentEquipment.title || '',
+        equipmentCode: currentEquipment.assetCode || '',
+        fullName:      fullNameInput.value.trim(),
+        studentId:     studentIdInput.value.trim(),
+        faculty:       facultyInput?.value.trim() || '',
+        department:    departmentInput?.value.trim() || '',
+        affiliation:   affiliationInput?.value.trim() || '',
+        startDate:     startDateInput.value,
+        endDate:       endDateInput.value,
+        activityName:  activityNameInput.value.trim(),
+        reason:        reasonInput.value.trim(),
+        applicantEmail: applicantEmailInput?.value.trim() || '',
+        applicantPhone: applicantPhoneInput?.value.trim() || ''
       });
     } catch (notifErr) {
       console.warn('Failed to send admin email notification:', notifErr);

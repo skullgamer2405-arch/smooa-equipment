@@ -544,6 +544,47 @@
                             <span class="material-symbols-outlined text-base">cloud_upload</span>
                             นำเข้าอุปกรณ์ทั้งหมด
                         </button>
+                </div>
+            </div>
+
+            <!-- Email Notification Settings Section -->
+            <div class="glass-card rounded-xl p-md border border-outline-variant mt-8">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-xl">mail</span>
+                            <h2 class="font-headline-sm text-headline-sm text-on-surface">ระบบส่งอีเมลแจ้งเตือน (Serverless Email)</h2>
+                        </div>
+                        <p class="text-xs text-gray-500 font-['Sarabun'] mt-1">
+                            ส่งอีเมลแจ้งเตือน Admin เมื่อมีคนยืม และส่งหาผู้ยืมเมื่ออนุมัติ/ปฏิเสธ ฟรี 100% ผ่าน Google Apps Script Web App
+                        </p>
+                    </div>
+                    <span id="webhook-status-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 font-['Prompt'] inline-flex items-center gap-1 self-start sm:self-auto">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span> ยังไม่ได้ตั้งค่า
+                    </span>
+                </div>
+
+                <div class="space-y-3 bg-white p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 font-['Prompt'] mb-1">
+                            URL ของ Google Apps Script Web App:
+                        </label>
+                        <input id="email-webhook-input" type="url" class="w-full px-3.5 py-2.5 rounded-lg border border-outline-variant text-xs font-mono focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="https://script.google.com/macros/s/.../exec">
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div class="text-[11px] text-gray-500 font-['Sarabun'] flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm text-amber-500">info</span>
+                            <span>ดูโค้ดและวิธีติดตั้งได้ในไฟล์ <code class="bg-gray-100 px-1 py-0.5 rounded text-primary font-mono font-semibold">google_apps_script_email.js</code></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="test-webhook-btn" type="button" class="px-3.5 py-2 rounded-xl border border-primary text-primary hover:bg-primary/5 text-xs font-['Prompt'] font-semibold transition-all flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">send</span> ทดสอบส่ง
+                            </button>
+                            <button id="save-webhook-btn" type="button" class="px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-container text-xs font-['Prompt'] font-semibold transition-all shadow-xs flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">save</span> บันทึกการตั้งค่า
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
