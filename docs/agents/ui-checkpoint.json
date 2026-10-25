@@ -1,5 +1,5 @@
 {
-  "updatedAtUTC": "2026-10-25T07:56:37.044969+00:00",
+  "updatedAtUTC": "2026-10-25T08:36:14.367336+00:00",
   "implementation": "primary agent; Gemini worker has not run",
   "tasks": {
     "foundation": "complete",
@@ -29,7 +29,8 @@
       "passed": 4,
       "SMTP": "mocked",
       "credentials": "not inherited"
-    }
+    },
+    "vercel_cloud_build": "passed: Vite demo and Express backend"
   },
   "not_run": [
     "live Firebase writes/authentication",
@@ -43,7 +44,17 @@
     "next": "Securely connect a supported Google route or independently verified zero-extra-cost API; verify exact Gemini Pro and tool calling before handoff",
     "resume": "npm run omniroute:check -- --dry-run"
   },
-  "deployment": "user approved demo Preview; blocked by environment network allowlist; additive draft saved, requires Publish; no deployment URL",
+  "deployment": {
+    "status": "READY",
+    "environment": "preview",
+    "url": "https://smooa-equipment-jawmyxah5-smocra-69.vercel.app",
+    "id": "dpl_Hddz6Djj7SDywBgGUNT5YxXBihu8",
+    "rootDirectory": "repository root (Vercel null)",
+    "framework": "per-service; project override cleared",
+    "demo": "forced frontend build and guarded API",
+    "productionPromoted": false,
+    "remoteBrowserWalkthrough": "not run"
+  },
   "optimization": {
     "review": "docs/agents/optimization-review.md",
     "application_source_lines_removed": 322,

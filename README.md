@@ -24,7 +24,7 @@ Local browser tests use `/usr/bin/chromium` (override `CHROMIUM_PATH`); CI uses 
 
 Latest code review, optimization measurements and outstanding findings: [optimization review](docs/agents/optimization-review.md).
 
-Vercel multi-service setup and demo deployment checkpoint: [Vercel services](docs/agents/vercel-services.md). Use `npm run dev:vercel` to run the services together. The user approved a demo Preview; Vercel Preview builds force sample data and the API blocks real email, uploads and file reads. Deployment remains blocked until the saved environment network draft is applied/published. Live storage and backend authorization still need separate work before production.
+Vercel multi-service setup and demo deployment checkpoint: [Vercel services](docs/agents/vercel-services.md). Use `npm run dev:vercel` to run the services together. The user approved a demo Preview; Vercel Preview builds force sample data and the API blocks real email, uploads and file reads. The [demo Preview](https://smooa-equipment-jawmyxah5-smocra-69.vercel.app) reached Vercel's Ready state after correcting the project's Root Directory to the repository root. Vercel sign-in may be required by deployment protection. Live storage and backend authorization still need separate work before production.
 
 The Chulabhorn Likit Text Regular webfont is self-hosted; see docs/agents/font-source.md. Typeset is retained without a container applied.
 

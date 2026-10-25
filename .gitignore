@@ -12,3 +12,6 @@ public/uploads/
 
 .local/
 .vercel/
+.env*
+!.env.example
+!.env.demo

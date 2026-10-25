@@ -44,8 +44,25 @@ Temporary disk storage applies only when the real API is enabled; demo Preview b
 
 The installed Vercel CLI 65.2.0 schema and service resolver accept this configuration, resolve `app` to `@vercel/static-build` and `api` to `@vercel/backends`, and accept both services sharing the root. Strict TypeScript, seven frontend unit cases, four isolated Express cases and the demo build passed. The Express checks verify unstripped API/upload paths, temporary upload read-back in non-demo mode, missing-token handling, both deployment/canonical email origins, and demo denial of JSON/multipart uploads, notifications and stored files even when conflicting flags are false. SMTP is mocked and no real credentials are inherited. Node server tests run through `npm run test:server`; Playwright collects only `*.spec.ts`.
 
-`npm run dev:vercel -- --listen 127.0.0.1:5196 --yes` was attempted. The CLI found no local credentials, tried its login flow and exited with `fetch failed`; the Vercel plugin connection has not supplied CLI credentials. The official `vercel-labs/agent-skills` deploy-to-vercel Codex fallback (source revision `063bee94c3f4df8453406c830b0a7df0f2860278`) was also attempted with an allowlisted demo archive and escalated permissions. The proxy blocked both `api.vercel.com` and `codex-deploy-skills.vercel.sh` with HTTP 403. No deployment URL was returned.
+## Successful Preview deployment
 
-The environment configuration draft now preserves all existing network rules and adds `vercel.com`, `api.vercel.com`, `codex-deploy-skills.vercel.sh`, `openapi.vercel.sh` and `*.vercel.app`. Saving the draft succeeded with `requires_publish=true`; the user must review/save it in environment settings and publish before readiness can be rechecked. Saved startup instructions include the guarded demo deployment workflow. This is not a deployment or proof of an applied runtime network change.
+The earlier network/authentication blockers were resolved: Vercel CLI 65.2.0 is installed globally and authenticated. The existing `smocra-69/smooa-equipment` project is linked locally; `.vercel/` and `.env.local` (including its generated OIDC credential) stay ignored.
 
-The ignored `.local/vercel-preview/services-demo.tgz` contains only selected source/assets/manifests/config. It excludes secrets and real uploads, forces the demo frontend build, and forces `SMO_DEMO_MODE=true` at the staged backend entrypoint regardless of the fallback host's environment classification. `.local/vercel-preview/checkpoint.json` records the outstanding deployment step. Local checks do not establish remote build, service dispatch or deployed runtime success.
+The failed Git deployment used the project's stale **Root Directory `smo-eq`** and Node framework override, so it did not load the repository-root service configuration. The project settings were corrected to the repository root (`rootDirectory: null`) and no global framework (`framework: null`); the frameworks are specified per service. The production branch remains `main`.
+
+An explicit **Preview**, with `VITE_DEMO_MODE=true` for builds and `SMO_DEMO_MODE=true` at runtime, reached provider state **READY**:
+
+- Preview: https://smooa-equipment-jawmyxah5-smocra-69.vercel.app
+- Deployment: `dpl_Hddz6Djj7SDywBgGUNT5YxXBihu8`
+- Build log confirms Vite demo mode, the backend `server.js` entrypoint and completed deployment.
+- Existing Vercel deployment protection remains enabled; the owner may need to sign into Vercel to open the Preview.
+
+No production deployment was promoted. Browser flows were verified with local fixtures; a remote browser walkthrough of this URL has not been performed. The ignored `.local/vercel-preview/checkpoint.json` retains provider metadata and the deployment checkpoint. The old allowlisted demo archive is retained only as a fallback, not the source of this successful linked deployment.
+
+## Agent setup
+
+The official https://vercel.com/get-started.md guide was followed. The Vercel plugin installer could not find Vercel in this Codex marketplace, so the documented fallback installed nine global standalone skills from `vercel-labs/agent-skills`. Plugin commands are not claimed to be installed.
+
+Codex's shared MCP endpoint `https://mcp.vercel.com` is configured in the agent's user configuration. Its first OAuth callback timed out; MCP authentication and authenticated `list_teams` verification remain pending. CLI authentication and CLI team access succeeded independently. Do not mistake one for the other or copy credentials into the repository.
+
+Inside the restricted cloud shell, `XDG_CACHE_HOME=/tmp/smooa-vercel-auth/cache NODE_USE_ENV_PROXY=1 vercel ...` avoids writes to the read-only default cache and uses the configured network proxy. Authenticated CLI team commands also need write access to their own user configuration cache; use the platform permission flow rather than copying its auth file.
