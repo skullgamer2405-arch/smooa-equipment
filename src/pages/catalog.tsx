@@ -303,6 +303,12 @@ export function SuccessPage() {
               รหัสคำขอ: {id}
             </p>
           )}
+          {location.state?.lineRequested && (
+            <p className="mt-4 text-sm" role="status">
+              ผูกคำขอนี้กับ LINE แล้ว ระบบจะส่งผลอนุมัติและเตือนคืนผ่านแชท LINE
+              OA กรุณาคงการเพิ่มเพื่อนไว้
+            </p>
+          )}
           <div className="my-6 border-y py-5">
             <h2 className="text-lg">ขั้นตอนถัดไป</h2>
             <p className="muted mt-2">

@@ -10,14 +10,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run src",
     "test:e2e": "playwright test",
-    "test:server": "node --test tests/server.test.mjs",
+    "test:server": "node --test tests/server.test.mjs tests/line.test.mjs",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
-    "omniroute:check": "node scripts/omniroute-check.mjs"
+    "omniroute:check": "node scripts/omniroute-check.mjs",
+    "line:check": "node scripts/line-check.mjs",
+    "line:menu": "node scripts/build-line-rich-menu.mjs"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "@hookform/resolvers": "^5.9.2",
+    "@line/liff": "^2.31.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.48.0",

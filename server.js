@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { createLineRouter } from './server/line.mjs';
 
 const demoMode = process.env.VERCEL_ENV === 'preview'
   || process.env.SMO_DEMO_MODE === 'true'
@@ -56,6 +57,7 @@ async function verifyAdminToken(req, res, next) {
   }
 
   try {
+    const { getAuth: getAdminAuth } = await import('firebase-admin/auth');
     req.adminUser = await getAdminAuth().verifyIdToken(token);
     next();
   } catch (err) {
@@ -93,6 +95,16 @@ if (demoMode) {
     message: 'โหมดตัวอย่างปิด API และไฟล์จริง กรุณาทดลองผ่านข้อมูลจำลองบนหน้าเว็บ',
   }));
 }
+app.use('/api/line', express.json({ limit: '16kb' }), createLineRouter({
+  getDb: () => {
+    if (!getApps().length) throw Error('FIREBASE_NOT_CONFIGURED');
+    return getFirestore();
+  },
+  verifyAdmin: async token => {
+    const { getAuth } = await import('firebase-admin/auth');
+    return getAuth().verifyIdToken(token, true);
+  },
+}));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(publicDir));

@@ -26,6 +26,7 @@ import type {
   CalendarEntry,
 } from "./types";
 import { asDate } from "./utils";
+import { lineEnabled, approveWithLine } from "./line";
 export const demo = import.meta.env.VITE_DEMO_MODE === "true";
 export const demoAccount = {
   email: "admin@example.invalid",
@@ -214,6 +215,9 @@ export async function decideBooking(
     }
     changed();
     return;
+  }
+  if (action === "approved" && lineEnabled) {
+    return approveWithLine(id, note);
   }
   const { db } = await import("./firebase");
   await runTransaction(db, async (tx) => {

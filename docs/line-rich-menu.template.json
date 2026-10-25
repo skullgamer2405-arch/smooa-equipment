@@ -1,0 +1,50 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 843
+  },
+  "selected": true,
+  "name": "SMO.CRA Equipment",
+  "chatBarText": "ยืมอุปกรณ์",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 833,
+        "height": 843
+      },
+      "action": {
+        "type": "uri",
+        "label": "ยืมอุปกรณ์",
+        "uri": "https://liff.line.me/YOUR_LIFF_ID/equipment.html"
+      }
+    },
+    {
+      "bounds": {
+        "x": 833,
+        "y": 0,
+        "width": 833,
+        "height": 843
+      },
+      "action": {
+        "type": "uri",
+        "label": "ปฏิทิน",
+        "uri": "https://liff.line.me/YOUR_LIFF_ID/calendar.html"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1666,
+        "y": 0,
+        "width": 834,
+        "height": 843
+      },
+      "action": {
+        "type": "uri",
+        "label": "วิธีใช้งาน",
+        "uri": "https://liff.line.me/YOUR_LIFF_ID/"
+      }
+    }
+  ]
+}

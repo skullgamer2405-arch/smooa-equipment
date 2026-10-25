@@ -16,7 +16,8 @@
     "types": ["vite/client", "node"],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "allowJs": true
   },
   "include": ["src", "vite.config.ts", "tests", "playwright.config.ts"]
 }

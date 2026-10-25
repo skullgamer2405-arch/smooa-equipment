@@ -79,6 +79,15 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // LINE recipients/tokens/delivery state are never exposed to browser clients.
+    // Only the server Admin SDK may access these collections.
+    match /lineBookingRecipients/{document=**} {
+      allow read, write: if false;
+    }
+    match /lineNotifications/{document=**} {
+      allow read, write: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

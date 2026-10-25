@@ -27,52 +27,10 @@ import {
 import { useData } from "../context";
 import { createBooking, notify } from "../lib/data";
 import { dateLabel, inputDate, parseInputDate } from "../lib/utils";
-const required = (label: string, max = 200) =>
-  z
-    .string()
-    .trim()
-    .min(1, "กรุณากรอก" + label)
-    .max(max, "ข้อความยาวเกินกำหนด");
-export const bookingSchema = z
-  .object({
-    fullName: required("ชื่อ–นามสกุล"),
-    studentId: required("รหัสนักศึกษา", 20),
-    faculty: required("คณะ"),
-    department: required("สาขา"),
-    affiliation: z.string().max(200),
-    applicantEmail: z.string().email("กรุณากรอกอีเมลให้ถูกต้อง"),
-    applicantPhone: z.string().max(30),
-    activityName: required("ชื่อกิจกรรม", 300),
-    reason: required("วัตถุประสงค์", 1000),
-    startDate: required("วันยืม"),
-    endDate: required("วันคืน"),
-    terms: z.boolean().refine(Boolean, "กรุณายอมรับเงื่อนไขก่อนส่งคำขอ"),
-  })
-  .superRefine((d, ctx) => {
-    for (const key of ["startDate", "endDate"] as const) {
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(d[key]) ||
-        inputDate(parseInputDate(d[key])) !== d[key]
-      )
-        ctx.addIssue({
-          code: "custom",
-          path: [key],
-          message: "วันที่ไม่ถูกต้อง",
-        });
-    }
-    if (d.startDate < inputDate(new Date()))
-      ctx.addIssue({
-        code: "custom",
-        path: ["startDate"],
-        message: "วันยืมต้องไม่อยู่ในอดีต",
-      });
-    if (d.endDate < d.startDate)
-      ctx.addIssue({
-        code: "custom",
-        path: ["endDate"],
-        message: "วันคืนต้องไม่ก่อนวันยืม",
-      });
-  });
+import { LineConnection } from "../components/line-connection";
+import { createLineBooking, type LineSession } from "../lib/line";
+import { bookingSchema } from "../../shared/booking-schema.js";
+export { bookingSchema };
 type Values = z.infer<typeof bookingSchema>;
 export function BookingPage() {
   const { equipment, isLoading, announce } = useData();
@@ -81,6 +39,9 @@ export function BookingPage() {
     navigate = useNavigate();
   const item = equipment.find((e) => e.id === params.get("id"));
   const [submitError, setSubmitError] = useState("");
+  const [lineAccount, setLineAccount] = useState<LineSession | null>(null);
+  const [lineConsent, setLineConsent] = useState(false);
+  const [requestId] = useState(() => crypto.randomUUID());
   const form = useForm<Values>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
@@ -115,7 +76,14 @@ export function BookingPage() {
         endDate: parseInputDate(data.endDate),
         status: "pending" as const,
       };
-      const id = await createBooking(booking);
+      const id = lineConsent
+        ? await createLineBooking({
+            ...fields,
+            equipmentId: item.id,
+            terms: true,
+            requestId,
+          })
+        : await createBooking(booking);
       try {
         const sent = await notify("notify-admin-booking", {
           ...fields,
@@ -128,7 +96,9 @@ export function BookingPage() {
       } catch {
         announce("บันทึกคำขอแล้ว แต่การแจ้งเตือนยังไม่สำเร็จ");
       }
-      navigate("/success.html", { state: { bookingId: id } });
+      navigate("/success.html", {
+        state: { bookingId: id, lineRequested: lineConsent },
+      });
     } catch (e) {
       setSubmitError(
         e instanceof Error ? e.message : "ส่งคำขอไม่สำเร็จ กรุณาลองอีกครั้ง",
@@ -235,6 +205,12 @@ export function BookingPage() {
                   className="grid min-w-0 gap-6 border-0 p-0"
                 >
                   <legend className="sr-only">ข้อมูลคำขอยืม</legend>
+                  <LineConnection
+                    session={lineAccount}
+                    onChange={setLineAccount}
+                    consent={lineConsent}
+                    onConsent={setLineConsent}
+                  />
                   <Card>
                     <CardContent className="p-5 md:p-6">
                       <div className="section-label">

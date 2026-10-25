@@ -226,10 +226,14 @@ export function AdminPage() {
       danger: status === "rejected",
       reason: status === "rejected",
       run: async (note) => {
-        await api.decideBooking(booking.id, status, note);
+        const result = await api.decideBooking(booking.id, status, note);
         announce(
           status === "approved" ? "อนุมัติคำขอแล้ว" : "บันทึกการไม่อนุมัติแล้ว",
         );
+        if (result?.notification === "queued")
+          announce(
+            "อนุมัติแล้ว แต่ LINE ยังส่งไม่สำเร็จ ระบบเก็บไว้ให้ตรวจและลองส่งใหม่",
+          );
         if (booking.applicantEmail) {
           try {
             await api.notify(

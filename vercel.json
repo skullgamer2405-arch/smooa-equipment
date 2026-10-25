@@ -22,24 +22,41 @@
     "api": {
       "root": ".",
       "framework": "express",
-      "runtime": "node",
+      "runtime": "nodejs24.x",
       "entrypoint": "server.js",
       "installCommand": "npm ci",
-      "buildCommand": "node --check server.js"
+      "buildCommand": "node --check server.js",
+      "functions": {
+        "server.js": {
+          "maxDuration": 60
+        }
+      }
     }
   },
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": { "service": "api" }
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/uploads/:path*",
-      "destination": { "service": "api" }
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/(.*)",
-      "destination": { "service": "app" }
+      "destination": {
+        "service": "app"
+      }
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/line/reminders",
+      "schedule": "0 2 * * *"
     }
   ]
 }

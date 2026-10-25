@@ -28,7 +28,7 @@ for (const mode of [{ VERCEL_ENV: 'preview' }, { VERCEL_ENV: 'production', SMO_D
         await new Promise(resolve => server.once('listening', resolve));
         const origin = 'http://127.0.0.1:' + server.address().port;
         try {
-          for (const route of ['upload-image', 'notify-admin-booking', 'notify-borrower-approved', 'notify-borrower-rejected']) {
+          for (const route of ['upload-image', 'notify-admin-booking', 'notify-borrower-approved', 'notify-borrower-rejected', 'line/bookings', 'line/bookings/fixture/approve']) {
             const response = await fetch(origin + '/api/' + route, {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'invalid JSON',
             });
@@ -38,7 +38,7 @@ for (const mode of [{ VERCEL_ENV: 'preview' }, { VERCEL_ENV: 'production', SMO_D
           const form = new FormData();
           form.append('image', new Blob(['must not be stored'], { type: 'image/png' }), 'new.png');
           assert.equal((await fetch(origin + '/api/upload-image', { method: 'POST', body: form })).status, 403);
-          for (const route of ['/api/admin/notifications', '/api/not-found', '/uploads/fixture.png']) {
+          for (const route of ['/api/admin/notifications', '/api/line/reminders', '/api/not-found', '/uploads/fixture.png']) {
             const response = await fetch(origin + route);
             assert.equal(response.status, 403);
             assert.equal((await response.json()).code, 'DEMO_MODE');
