@@ -6,7 +6,7 @@ import { fixtureState } from "../src/lib/fixtures";
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     try {
-      sessionStorage.setItem("smo-line-notifications-v1-demo", "declined");
+      sessionStorage.setItem("smo-line-notifications-v2-demo", "declined");
     } catch {}
   });
   await page.route(/^https?:\/\//, (route) =>
@@ -98,9 +98,8 @@ test("booking, guarded approval, calendar and return stay functional", async ({
     reason: "ใช้สำหรับทดสอบระบบ",
   }))
     await page.locator("#" + id).fill(value);
-  const date = await page.evaluate(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const date = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Bangkok",
   });
   await page.locator("#startDate").fill(date);
   await page.locator("#endDate").fill(date);

@@ -15,6 +15,11 @@ import {
   lineFriendUrl,
   type LineSession,
 } from "./lib/line";
+import {
+  savedLineChoice,
+  saveLineChoice,
+  type LineChoice,
+} from "./lib/line-consent";
 import { Button } from "./components/ui/button";
 import {
   Dialog,
@@ -23,70 +28,63 @@ import {
   DialogDescription,
 } from "./components/ui/dialog";
 
-type Choice = "accepted" | "declined" | "";
 type Account = Pick<LineSession, "displayName" | "friend">;
-const preferenceKey = `smo-line-notifications-v1-${demo ? "demo" : "live"}`;
-function savedChoice(): Choice {
-  try {
-    const value = sessionStorage.getItem(preferenceKey);
-    return value === "accepted" || value === "declined" ? value : "";
-  } catch {
-    return "";
-  }
-}
 type LineState = {
-  account: Account | null;
   consent: boolean;
-  busy: boolean;
-  requestConnection: () => void;
-  setConsent: (value: boolean) => void;
+  ready: boolean;
 };
 const Context = createContext<LineState | null>(null);
 const demoAccount = { displayName: "บัญชี LINE ตัวอย่าง", friend: true };
 
 export function LineProvider({ children }: { children: ReactNode }) {
-  const [initialChoice] = useState<Choice>(savedChoice);
+  const [initialChoice] = useState(savedLineChoice);
   const [choice, setChoice] = useState(initialChoice);
-  const [account, setAccount] = useState<Account | null>(
-    demo && initialChoice === "accepted" ? demoAccount : null,
+  const [account, setAccount] = useState<Account | null>(null);
+  const [ready, setReady] = useState(
+    demo || !lineEnabled || initialChoice !== "pending",
   );
-  const [ready, setReady] = useState(demo || !lineEnabled);
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(initialChoice === ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const adminPage = /^\/admin(?:\.html)?\/?$/.test(useLocation().pathname);
-  const consent = choice === "accepted" && account?.friend === true;
+  // Consent is a preference, not proof of identity. Every linked booking checks
+  // the current LINE session and the server verifies its ID token again.
+  const consent = choice === "accepted";
   const attempt = useRef(0);
-  function remember(value: Choice) {
+  function remember(value: Exclude<LineChoice, "">) {
     setChoice(value);
-    try {
-      sessionStorage.setItem(preferenceKey, value);
-    } catch {
-      /* use in-memory preference */
-    }
+    saveLineChoice(value);
   }
   useEffect(() => {
     const version = ++attempt.current;
+    // Already connected: no second app permission prompt or profile request.
+    // LIFF restores login on entry; a stale login must not disable notifications
+    // silently by sending an unlinked booking instead.
+    if (initialChoice !== "pending") return;
     if (demo) {
-      setAccount(initialChoice === "accepted" ? demoAccount : null);
+      remember("accepted");
       return;
     }
-    if (!lineEnabled || initialChoice !== "accepted") {
+    if (!lineEnabled) {
       setReady(true);
       return;
     }
     lineSession()
       .then((s) => {
-        if (attempt.current === version)
-          setAccount(
-            s ? { displayName: s.displayName, friend: s.friend } : null,
-          );
+        if (attempt.current !== version) return;
+        setAccount(s ? { displayName: s.displayName, friend: s.friend } : null);
+        if (s?.friend) {
+          remember("accepted");
+          setOpen(false);
+        } else setOpen(true);
       })
       .catch(() => {
-        if (attempt.current === version)
+        if (attempt.current === version) {
           setError(
             "ตรวจการเชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองอีกครั้ง หรือเลือกไว้ภายหลัง",
           );
+          setOpen(true);
+        }
       })
       .finally(() => {
         if (attempt.current === version) setReady(true);
@@ -95,16 +93,6 @@ export function LineProvider({ children }: { children: ReactNode }) {
       attempt.current++;
     };
   }, [initialChoice]);
-  useEffect(() => {
-    if (
-      !adminPage &&
-      ready &&
-      (demo || lineEnabled) &&
-      choice !== "declined" &&
-      !consent
-    )
-      setOpen(true);
-  }, [adminPage, ready, choice, consent]);
   function dismiss() {
     attempt.current++;
     setBusy(false);
@@ -117,13 +105,16 @@ export function LineProvider({ children }: { children: ReactNode }) {
     const version = ++attempt.current;
     setBusy(true);
     setError("");
-    // Keep the user's choice through the official LINE login redirect, without storing tokens.
-    remember("accepted");
+    // Remember an unfinished login only for its redirect, not as lasting consent.
+    remember("pending");
     try {
       const s = demo ? demoAccount : await lineSession(true);
       if (attempt.current !== version) return;
       setAccount(s ? { displayName: s.displayName, friend: s.friend } : null);
-      if (s?.friend) setOpen(false);
+      if (s?.friend) {
+        remember("accepted");
+        setOpen(false);
+      }
     } catch {
       if (attempt.current === version)
         setError(
@@ -136,30 +127,12 @@ export function LineProvider({ children }: { children: ReactNode }) {
       }
     }
   }
-  function setConsent(value: boolean) {
-    if (value && !account?.friend) {
-      setOpen(true);
-      return;
-    }
-    remember(value ? "accepted" : "declined");
-  }
   const friendUrl = lineFriendUrl();
   return (
-    <Context.Provider
-      value={{
-        account,
-        consent,
-        busy,
-        setConsent,
-        requestConnection: () => {
-          setError("");
-          setOpen(true);
-        },
-      }}
-    >
+    <Context.Provider value={{ consent, ready }}>
       {children}
       <Dialog
-        open={open && !adminPage}
+        open={open && !adminPage && (demo || lineEnabled)}
         onOpenChange={(value) => (value ? setOpen(true) : dismiss())}
       >
         <DialogContent
@@ -167,7 +140,7 @@ export function LineProvider({ children }: { children: ReactNode }) {
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
           onCloseAutoFocus={(e) => {
             e.preventDefault();
-            document.getElementById("line-connection-toggle")?.focus();
+            document.getElementById("main")?.focus();
           }}
         >
           <div className="grid size-12 place-items-center rounded-lg bg-primary text-primary-foreground">
@@ -200,8 +173,9 @@ export function LineProvider({ children }: { children: ReactNode }) {
             </div>
           )}
           <p className="text-sm muted">
-            เมื่ออนุญาต ระบบจะใช้การตั้งค่านี้กับคำขอที่ส่งในรอบการใช้งานนี้
-            เปลี่ยนได้ในหน้าจอง หรือบล็อก OA เพื่อหยุดรับข้อความ
+            เชื่อมต่อครั้งเดียวสำหรับคำขอนี้และครั้งถัดไป
+            เมื่อกลับมาเปิดเว็บบนเบราว์เซอร์เดิมจะไม่ถามซ้ำ
+            หากต้องการหยุดรับข้อความ สามารถบล็อก SMO OA ใน LINE ได้
           </p>
           {error && (
             <p role="alert" className="text-sm text-destructive">
@@ -225,14 +199,7 @@ export function LineProvider({ children }: { children: ReactNode }) {
                 </a>
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                remember("declined");
-                dismiss();
-              }}
-            >
+            <Button type="button" variant="outline" onClick={dismiss}>
               ไว้ภายหลัง
             </Button>
           </div>
@@ -245,30 +212,4 @@ export function useLine() {
   const state = useContext(Context);
   if (!state) throw Error("LineProvider missing");
   return state;
-}
-
-export function LineStatusBar() {
-  const { consent, requestConnection } = useLine();
-  const adminPage = /^\/admin(?:\.html)?\/?$/.test(useLocation().pathname);
-  if (adminPage || (!demo && !lineEnabled)) return null;
-  return (
-    <div className="border-b bg-white px-4">
-      <div className="mx-auto flex max-w-[1136px] justify-end">
-        <Button
-          id="line-connection-toggle"
-          type="button"
-          variant="link"
-          className="text-sm whitespace-normal text-left"
-          onClick={requestConnection}
-        >
-          <MessageCircle aria-hidden="true" />
-          {consent
-            ? demo
-              ? "ตัวอย่าง: เปิดรับแจ้งเตือน LINE"
-              : "เปิดรับแจ้งเตือนจาก SMO OA แล้ว"
-            : "เชื่อม LINE เพื่อรับแจ้งเตือน"}
-        </Button>
-      </div>
-    </div>
-  );
 }

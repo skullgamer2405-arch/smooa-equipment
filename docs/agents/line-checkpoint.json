@@ -4,18 +4,17 @@
   "schedule": {
     "timezone": "Asia/Bangkok",
     "target_time": "09:00",
-    "days": [
-      "day_before_due",
-      "due_day"
-    ],
+    "days": ["day_before_due", "due_day"],
     "vercel_cron_utc": "0 2 * * *",
     "hobby_precision": "09:00–09:59"
   },
   "validation": {
     "typescript": "passed",
-    "frontend_unit_tests": 20,
+    "frontend_unit_tests": 25,
     "server_fixture_tests": 12,
-    "browser_fixture_tests": 26,
+    "browser_fixture_tests": 33,
+    "browser_timezone": "Asia/Bangkok; borrowing/calendar fixtures use the same Thai day",
+    "line_consent_browser_coverage": "9 demo entry cases plus 4 isolated mocked connection cases; no real LINE/Firebase requests",
     "demo_build": "passed",
     "liff_enabled_build_with_fake_public_id": "passed",
     "rich_menu": "2500x843 PNG, locally generated and visually inspected"
@@ -44,11 +43,14 @@
   ],
   "entry_permission": {
     "automatic_prompt": "borrower pages including direct QR/booking links",
-    "scope": "browser session, shared with booking",
-    "decline": "remembers until browser session ends; can reopen from status bar",
+    "scope": "completed connection persists across browser sessions on the same origin/browser, scoped to demo/live and LIFF ID; automatically used for future bookings",
+    "decline": "remembers until browser session ends; offers permission on a later fresh session",
     "admin_entry": "exempt",
     "demo": "clearly labelled simulation; no real LINE requests",
-    "browser_storage": "preference only; no application token or LINE user ID storage"
+    "browser_storage": "localStorage only after successful connection; sessionStorage for unfinished login and dismissal; no application token, profile or LINE user ID storage",
+    "other_pages": "no LINE status bar, connection card or per-booking consent controls",
+    "expired_identity": "booking verifies a fresh session/token; no silent fallback to an unlinked booking",
+    "storage_limits": "cleared/blocked storage, another browser/device or another origin can require the app prompt again"
   },
   "oa": {
     "id": "@474ezowf",

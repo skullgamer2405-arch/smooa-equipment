@@ -27,7 +27,6 @@ import {
 import { useData } from "../context";
 import { createBooking, notify } from "../lib/data";
 import { dateLabel, inputDate, parseInputDate } from "../lib/utils";
-import { LineConnection } from "../components/line-connection";
 import { createLineBooking, lineEnabled } from "../lib/line";
 import { useLine } from "../line-context";
 import { bookingSchema } from "../../shared/booking-schema.js";
@@ -40,7 +39,7 @@ export function BookingPage() {
     navigate = useNavigate();
   const item = equipment.find((e) => e.id === params.get("id"));
   const [submitError, setSubmitError] = useState("");
-  const { consent: lineConsent } = useLine();
+  const { consent: lineConsent, ready: lineReady } = useLine();
   const [requestId] = useState(() => crypto.randomUUID());
   const form = useForm<Values>({
     resolver: zodResolver(bookingSchema),
@@ -63,7 +62,7 @@ export function BookingPage() {
   const values = form.watch();
   const errors = form.formState.errors;
   async function submit(data: Values) {
-    if (!item || item.status !== "available") return;
+    if (!lineReady || !item || item.status !== "available") return;
     setSubmitError("");
     try {
       const { terms: _, ...fields } = data;
@@ -206,7 +205,6 @@ export function BookingPage() {
                   className="grid min-w-0 gap-6 border-0 p-0"
                 >
                   <legend className="sr-only">ข้อมูลคำขอยืม</legend>
-                  <LineConnection />
                   <Card>
                     <CardContent className="p-5 md:p-6">
                       <div className="section-label">
@@ -351,7 +349,7 @@ export function BookingPage() {
                         <Button
                           type="submit"
                           form="borrow-form"
-                          disabled={form.formState.isSubmitting}
+                          disabled={!lineReady || form.formState.isSubmitting}
                           className="w-full mt-4"
                         >
                           {form.formState.isSubmitting ? (

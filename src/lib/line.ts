@@ -67,7 +67,9 @@ export function lineFriendUrl() {
 export async function createLineBooking(data: Record<string, unknown>) {
   const session = await lineSession();
   if (!session?.friend)
-    throw Error("กรุณาเชื่อมต่อ LINE และเพิ่มเพื่อน LINE OA ก่อนส่งคำขอ");
+    throw Error(
+      "ตรวจบัญชี LINE ไม่สำเร็จ กรุณาเปิดเว็บอีกครั้งจาก Rich Menu ของ SMO OA และตรวจว่าไม่ได้บล็อกบัญชี",
+    );
   const r = await fetch("/api/line/bookings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -80,7 +82,7 @@ export async function createLineBooking(data: Record<string, unknown>) {
   if (!r.ok)
     throw Error(
       r.status === 401
-        ? "การเชื่อมต่อ LINE หมดอายุ กรุณาเชื่อมต่อใหม่"
+        ? "การเชื่อมต่อ LINE หมดอายุ กรุณาเปิดเว็บอีกครั้งจาก Rich Menu ของ SMO OA"
         : "บันทึกคำขอผ่าน LINE ไม่สำเร็จ กรุณาลองใหม่",
     );
   return (await r.json()).bookingId as string;
