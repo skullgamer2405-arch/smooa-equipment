@@ -94,6 +94,8 @@ describe("LIFF integration without any live identity requests", () => {
   });
   it("rejects non-LINE friend URLs", async () => {
     const line = await import("./line");
+    vi.stubEnv("VITE_LINE_OA_URL", "");
+    expect(line.lineFriendUrl()).toBe("https://line.me/R/ti/p/@474ezowf");
     for (const url of [
       "javascript:alert(1)",
       "https://line.me.attacker.invalid/",

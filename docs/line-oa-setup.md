@@ -1,5 +1,7 @@
 # เชื่อมเว็บยืมอุปกรณ์กับ LINE OA
 
+LINE OA ที่เจ้าของระบุคือ **@474ezowf** ลิงก์เพิ่มเพื่อน: [เปิด SMO OA](https://line.me/R/ti/p/@474ezowf) ตั้งเป็นค่าเริ่มต้นใน `shared/line-oa.js` แล้ว และเปลี่ยนได้ด้วย `VITE_LINE_OA_URL`
+
 โค้ดรองรับแล้ว แต่ **ยังไม่ได้เปิดการส่งข้อความจริง** เพราะบัญชีนี้มี LINE OA แล้ว แต่ยังไม่มี LINE Developers/LIFF และยังไม่ได้ใส่ credentials ใน Vercel เว็บ Preview ใช้ข้อมูลจำลองและปิด API จริงเสมอ
 
 ## ผู้ยืมจะใช้อย่างไร
@@ -52,7 +54,7 @@ Endpoint ต้องเปิดจากมือถือได้โดย�
 | ตัวแปร | ใส่อะไร |
 | --- | --- |
 | `VITE_LINE_LIFF_ID` | LIFF ID จากข้อ 2 |
-| `VITE_LINE_OA_URL` | ลิงก์เพิ่มเพื่อนที่ขึ้นต้น `https://lin.ee/` หรือ `https://line.me/` |
+| `VITE_LINE_OA_URL` | ค่าเริ่มต้น `https://line.me/R/ti/p/@474ezowf` ตั้งแล้ว ไม่จำเป็นต้องระบุซ้ำ ยกเว้นต้องการเปลี่ยนบัญชี |
 | `LINE_LOGIN_CHANNEL_ID` | Channel ID ของ **LINE Login** |
 | `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | Access token ของ **Messaging API** |
 | `LINE_ADMIN_EMAILS` | อีเมลผู้ดูแล Firebase ที่อนุญาตให้อนุมัติ คั่นหลายบัญชีด้วย comma และต้องยืนยันอีเมลแล้ว |

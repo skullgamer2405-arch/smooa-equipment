@@ -1,3 +1,5 @@
+import { lineOa } from "../../shared/line-oa.js";
+
 export const lineEnabled =
   import.meta.env.VITE_DEMO_MODE !== "true" &&
   Boolean(import.meta.env.VITE_LINE_LIFF_ID);
@@ -54,7 +56,7 @@ export async function lineSession(login = false): Promise<LineSession | null> {
 }
 export function lineFriendUrl() {
   try {
-    const u = new URL(import.meta.env.VITE_LINE_OA_URL);
+    const u = new URL(import.meta.env.VITE_LINE_OA_URL || lineOa.friendUrl);
     return u.protocol === "https:" && ["line.me", "lin.ee"].includes(u.hostname)
       ? u.href
       : null;

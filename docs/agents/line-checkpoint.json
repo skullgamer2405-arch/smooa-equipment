@@ -38,7 +38,6 @@
     "Messaging API channel",
     "LINE Login channel under the same provider",
     "LIFF ID and stable public HTTPS endpoint",
-    "OA friend URL",
     "secure deployment credentials and verified admin allowlist",
     "production backend/rules hardening",
     "isolated integration trial before publishing"
@@ -50,5 +49,11 @@
     "admin_entry": "exempt",
     "demo": "clearly labelled simulation; no real LINE requests",
     "browser_storage": "preference only; no application token or LINE user ID storage"
+  },
+  "oa": {
+    "id": "@474ezowf",
+    "friend_url": "https://line.me/R/ti/p/@474ezowf",
+    "source": "provided_by_owner",
+    "account_link_verified": "public add-friend page returned HTTP 200; identity supplied by owner; channel matching remains unverified"
   }
 }

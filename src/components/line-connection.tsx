@@ -3,11 +3,12 @@ import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { demo } from "../lib/data";
-import { lineEnabled } from "../lib/line";
+import { lineEnabled, lineFriendUrl } from "../lib/line";
 import { useLine } from "../line-context";
 
 export function LineConnection() {
   const { account, consent, setConsent, requestConnection, busy } = useLine();
+  const friendUrl = lineFriendUrl();
   return (
     <Card>
       <CardContent className="p-5 md:p-6 grid gap-3">
@@ -57,6 +58,13 @@ export function LineConnection() {
           <p className="text-sm" role="status">
             กำลังเตรียมบริการ LINE คุณยังจองผ่านแบบฟอร์มนี้ได้ตามปกติ
           </p>
+        )}
+        {friendUrl && (demo || !account?.friend) && (
+          <Button asChild variant="outline">
+            <a href={friendUrl} target="_blank" rel="noopener noreferrer">
+              เพิ่มเพื่อน SMO OA
+            </a>
+          </Button>
         )}
       </CardContent>
     </Card>

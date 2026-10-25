@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import { lineOa } from "../shared/line-oa.js";
 config({ path: [".env.local", ".env"], quiet: true });
 const env = process.env;
 const results = [];
@@ -29,7 +30,7 @@ try {
   check("PUBLIC_APP_URL HTTPS", false);
 }
 try {
-  const u = new URL(env.VITE_LINE_OA_URL);
+  const u = new URL(env.VITE_LINE_OA_URL || lineOa.friendUrl);
   check(
     "VITE_LINE_OA_URL",
     u.protocol === "https:" && ["line.me", "lin.ee"].includes(u.hostname),

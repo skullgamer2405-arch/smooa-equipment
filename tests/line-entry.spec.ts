@@ -24,6 +24,9 @@ for (const width of [320, 375, 1440])
     expect(await dialog.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(
       true,
     );
+    await expect(
+      dialog.getByRole("link", { name: "เพิ่มเพื่อน SMO OA", exact: true }),
+    ).toHaveAttribute("href", "https://line.me/R/ti/p/@474ezowf");
     const button = dialog.getByRole("button", { name: accept });
     await button.scrollIntoViewIfNeeded();
     const box = await button.boundingBox();

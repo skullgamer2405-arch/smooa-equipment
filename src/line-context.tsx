@@ -197,13 +197,6 @@ export function LineProvider({ children }: { children: ReactNode }) {
                 เชื่อมกับ {account.displayName} แล้ว กรุณาเพิ่มเพื่อน SMO OA
                 แล้วกดตรวจสอบอีกครั้งเพื่อรับข้อความ
               </p>
-              {friendUrl && (
-                <Button asChild variant="outline">
-                  <a href={friendUrl} target="_blank" rel="noopener noreferrer">
-                    เพิ่มเพื่อน SMO OA
-                  </a>
-                </Button>
-              )}
             </div>
           )}
           <p className="text-sm muted">
@@ -225,6 +218,13 @@ export function LineProvider({ children }: { children: ReactNode }) {
                     ? "เพิ่มเพื่อนแล้ว ตรวจสอบอีกครั้ง"
                     : "ยินยอมและเชื่อมต่อ LINE"}
             </Button>
+            {friendUrl && (demo || !account?.friend) && (
+              <Button asChild variant="outline">
+                <a href={friendUrl} target="_blank" rel="noopener noreferrer">
+                  เพิ่มเพื่อน SMO OA
+                </a>
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
