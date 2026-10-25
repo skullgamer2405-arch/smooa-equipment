@@ -1,0 +1,45 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "vite",
+      "installCommand": "npm ci",
+      "buildCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ]; then VITE_DEMO_MODE=true npm run build -- --mode demo; else npm run build; fi",
+      "devCommand": "npm run dev:web -- --host 127.0.0.1",
+      "outputDirectory": "dist",
+      "rewrites": [
+        {
+          "source": "/:page(equipment|calendar|booking|success|admin)",
+          "destination": "/index.html"
+        },
+        {
+          "source": "/:page(equipment|calendar|booking|success|admin).html",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "api": {
+      "root": ".",
+      "framework": "express",
+      "runtime": "node",
+      "entrypoint": "server.js",
+      "installCommand": "npm ci",
+      "buildCommand": "node --check server.js"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": { "service": "api" }
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": { "service": "api" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "app" }
+    }
+  ]
+}

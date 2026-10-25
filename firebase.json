@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "public",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -9,13 +9,64 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css)",
+        "source": "/assets/**",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "max-age=3600"
+            "value": "public,max-age=31536000,immutable"
           }
         ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/equipment",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/equipment.html",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/calendar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/calendar.html",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/booking",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/booking.html",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/admin.html",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/success",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/success.html",
+        "destination": "/index.html"
       }
     ]
   },

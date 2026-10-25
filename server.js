@@ -2,16 +2,21 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 
+const demoMode = process.env.VERCEL_ENV === 'preview'
+  || process.env.SMO_DEMO_MODE === 'true'
+  || process.env.VITE_DEMO_MODE === 'true';
+
 // ─── Firebase Admin Init ───────────────────────────────────────────────────
 // ใช้ GOOGLE_APPLICATION_CREDENTIALS (service account JSON path) หรือ
 // Application Default Credentials (Cloud Run / GCE) อัตโนมัติ
-if (!getApps().length) {
+if (!demoMode && !getApps().length) {
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
       // รองรับ inject JSON string ตรงๆ ผ่าน env
@@ -62,12 +67,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
-const publicDir = path.join(__dirname, 'public');
-const uploadDir = path.join(publicDir, 'uploads');
+const PORT = Number(process.env.PORT || 3000);
+const publicDir = path.join(__dirname, 'dist');
+// shortcut: Vercel uploads are per-instance temporary files; use shared object storage before production.
+const uploadDir = process.env.VERCEL
+  ? path.join(tmpdir(), 'smooa-equipment-uploads')
+  : path.join(__dirname, 'public', 'uploads');
+const adminUrl = new URL('/admin.html', process.env.PUBLIC_APP_URL || (
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${PORT}`
+)).href;
 
 // Ensure uploads folder exists
-if (!fs.existsSync(uploadDir)) {
+if (!demoMode && !fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
@@ -75,6 +86,13 @@ if (!fs.existsSync(uploadDir)) {
 const notificationLog = [];
 
 // Middleware
+if (demoMode) {
+  app.use(['/api', '/uploads'], (_req, res) => res.status(403).json({
+    success: false,
+    code: 'DEMO_MODE',
+    message: 'โหมดตัวอย่างปิด API และไฟล์จริง กรุณาทดลองผ่านข้อมูลจำลองบนหน้าเว็บ',
+  }));
+}
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(publicDir));
@@ -282,7 +300,7 @@ app.post('/api/notify-admin-booking', async (req, res) => {
             </div>
 
             <div class="btn-container">
-              <a href="https://ais-dev-lywh6mc65jfa6xl6m37ab6-126087633678.asia-southeast1.run.app/admin.html" class="btn-approve" target="_blank">
+              <a href="${adminUrl}" class="btn-approve" target="_blank">
                 เข้าสู่ระบบแอดมินเพื่อตรวจสอบและอนุมัติ
               </a>
             </div>
@@ -538,27 +556,15 @@ app.get('/api/admin/notifications', verifyAdminToken, (req, res) => {
   });
 });
 
-// HTML page routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
-});
+// Explicit application routes preserve legacy links without swallowing /api or files.
+for (const route of ['/', '/index.html', '/equipment', '/equipment.html', '/calendar', '/calendar.html', '/booking', '/booking.html', '/admin', '/admin.html', '/success', '/success.html']) {
+  app.get(route, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+}
 
-app.get('/equipment', (req, res) => {
-  res.sendFile(path.join(publicDir, 'equipment.html'));
-});
+export default app;
 
-app.get('/calendar', (req, res) => {
-  res.sendFile(path.join(publicDir, 'calendar.html'));
-});
-
-app.get('/booking', (req, res) => {
-  res.sendFile(path.join(publicDir, 'booking.html'));
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin.html'));
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${PORT}`);
+  });
+}

@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.demo
+smooa-c1945-*.json
+node_modules/
+dist/
+.local/
+.agents/
+.claude/
+.codex/
+smo-eq/
+stitch_frontend/
+*.zip
+public/uploads/
+playwright-report/
+test-results/

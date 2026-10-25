@@ -1,2 +1,14 @@
 .env
 smooa-c1945-*.json
+
+# Build and local tooling
+node_modules/
+dist/
+playwright-report/
+test-results/
+.env.local
+.env.*.local
+public/uploads/
+
+.local/
+.vercel/

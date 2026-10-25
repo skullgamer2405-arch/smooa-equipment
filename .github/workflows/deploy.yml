@@ -24,17 +24,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
 
-      - name: Check server.js syntax
-        run: node --check server.js
-
-      - name: Check public JS files syntax
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate server and frontend
         run: |
-          for f in public/js/*.js; do
-            echo "Checking $f..."
-            node --check "$f"
-          done
+          node --check server.js
+          npm run typecheck
+          npm test
+          npm run build
+          npm run test:server
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: UI regression and accessibility
+        run: npm run test:e2e
 
   # ──────────────────────────────────────────────
   # JOB 2: Deploy Firebase Hosting
@@ -50,7 +54,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
+
+      - name: Build production UI
+        run: |
+          npm ci
+          npm run build
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
