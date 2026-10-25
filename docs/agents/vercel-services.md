@@ -57,7 +57,7 @@ An explicit **Preview**, with `VITE_DEMO_MODE=true` for builds and `SMO_DEMO_MOD
 - Build log confirms Vite demo mode, the backend `server.js` entrypoint and completed deployment.
 - Existing Vercel deployment protection remains enabled; the owner may need to sign into Vercel to open the Preview.
 
-No production deployment was promoted. Browser flows were verified with local fixtures; a remote browser walkthrough of this URL has not been performed. The ignored `.local/vercel-preview/checkpoint.json` retains provider metadata and the deployment checkpoint. The old allowlisted demo archive is retained only as a fallback, not the source of this successful linked deployment.
+No production deployment was promoted. During login troubleshooting, a Chromium walkthrough of this exact hosted Preview authenticated successfully with the documented demo account, with all external origins blocked. A separate reproduction showed that denying browser session storage prevented the old admin view from loading; this does not establish the cause on the owner’s browser. The demo now provides an explicit one-click login and falls back to in-memory fixtures/auth when storage is denied. Without storage, a page reload resets the demo session. Regression coverage includes incorrect credentials, one-click entry, fixture mutations, reload and logout with storage available and denied. The ignored `.local/vercel-preview/checkpoint.json` retains provider metadata and the deployment checkpoint. The old allowlisted demo archive is retained only as a fallback, not the source of this successful linked deployment.
 
 ## Agent setup
 

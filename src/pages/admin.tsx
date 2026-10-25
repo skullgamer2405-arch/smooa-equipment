@@ -52,18 +52,21 @@ import { AdminImport } from "../components/admin-import";
 function Login() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const d = new FormData(e.currentTarget);
+  async function signIn(email: string, password: string) {
     setBusy(true);
     setError("");
     try {
-      await api.login(String(d.get("email")).trim(), String(d.get("password")));
+      await api.login(email, password);
     } catch {
       setError("เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจอีเมล รหัสผ่าน และการเชื่อมต่อ");
     } finally {
       setBusy(false);
     }
+  }
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    void signIn(String(d.get("email")).trim(), String(d.get("password")));
   }
   return (
     <div className="mx-auto max-w-md py-6 md:py-12">
@@ -106,11 +109,26 @@ function Login() {
             </Button>
           </form>
           {api.demo && (
-            <p className="mt-5 rounded bg-muted p-3 text-sm">
-              บัญชีตัวอย่าง: admin@example.invalid
-              <br />
-              รหัสผ่าน: demo-only
-            </p>
+            <div className="mt-5 rounded bg-muted p-3">
+              <p className="text-sm">
+                โหมดทดลอง ใช้ข้อมูลจำลอง แยกจากบัญชีผู้ดูแลจริง
+                <br />
+                บัญชีตัวอย่าง: {api.demoAccount.email}
+                <br />
+                รหัสผ่าน: {api.demoAccount.password}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full"
+                disabled={busy}
+                onClick={() =>
+                  void signIn(api.demoAccount.email, api.demoAccount.password)
+                }
+              >
+                เข้าสู่ระบบทดลอง
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

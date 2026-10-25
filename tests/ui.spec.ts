@@ -19,6 +19,56 @@ async function login(page: Page) {
     page.getByRole("heading", { name: "จัดการคำขอและอุปกรณ์" }),
   ).toBeVisible();
 }
+for (const blocked of [false, true])
+  test(`demo login rejects wrong credentials and supports storage ${blocked ? "blocked" : "available"}`, async ({
+    page,
+  }) => {
+    if (blocked)
+      await page.addInitScript(() => {
+        Object.defineProperty(window, "sessionStorage", {
+          get() {
+            throw new DOMException("Storage blocked", "SecurityError");
+          },
+        });
+      });
+    await page.goto("/admin.html");
+    await page.getByLabel("อีเมลผู้ดูแล").fill("admin@example.invalid");
+    await page.getByLabel("รหัสผ่าน", { exact: true }).fill("incorrect");
+    await page
+      .getByRole("button", { name: "เข้าสู่ระบบ", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("เข้าสู่ระบบไม่สำเร็จ");
+    await page
+      .getByRole("button", { name: "เข้าสู่ระบบทดลอง", exact: true })
+      .click();
+    const dashboard = page.getByRole("heading", {
+      name: "จัดการคำขอและอุปกรณ์",
+    });
+    await expect(dashboard).toBeVisible();
+    // Demo mutations must also work when browser storage is unavailable.
+    await page.getByRole("tab", { name: "จัดการอุปกรณ์", exact: true }).click();
+    await page
+      .getByRole("button", { name: "รับคืน", exact: true })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "ยืนยัน", exact: true }).click();
+    await expect(page.getByRole("alertdialog")).not.toBeVisible();
+    await page.reload();
+    if (blocked) {
+      await expect(
+        page.getByRole("heading", { name: "เข้าสู่ระบบจัดการ" }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "เข้าสู่ระบบทดลอง", exact: true })
+        .click();
+    }
+    await expect(dashboard).toBeVisible();
+    await page.getByRole("button", { name: "ออกจากระบบ", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "เข้าสู่ระบบจัดการ" }),
+    ).toBeVisible();
+  });
 test("booking, guarded approval, calendar and return stay functional", async ({
   page,
 }) => {

@@ -27,11 +27,31 @@ import type {
 } from "./types";
 import { asDate } from "./utils";
 export const demo = import.meta.env.VITE_DEMO_MODE === "true";
+export const demoAccount = {
+  email: "admin@example.invalid",
+  password: "demo-only",
+};
 type Row = Equipment | Booking | CalendarEntry;
 const listeners = new Set<() => void>();
+function readDemo(key: string) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function persistDemo(key: string, value: string | null) {
+  try {
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch {
+    // Restricted browsers can still use fixtures in memory until the page reloads.
+  }
+}
+let demoAdmin = demo && readDemo("smo-demo-admin") === "1";
 function loadDemo() {
   try {
-    const raw = sessionStorage.getItem("smo-demo-state");
+    const raw = readDemo("smo-demo-state");
     if (raw) return JSON.parse(raw) as ReturnType<typeof fixtureState>;
   } catch {
     /* isolated demo resets */
@@ -40,7 +60,7 @@ function loadDemo() {
 }
 const state = demo ? loadDemo() : fixtureState();
 function changed() {
-  sessionStorage.setItem("smo-demo-state", JSON.stringify(state));
+  persistDemo("smo-demo-state", JSON.stringify(state));
   listeners.forEach((f) => f());
 }
 export function watch(
@@ -77,12 +97,7 @@ export function watchAuth(
   next: (user: { email: string | null } | null) => void,
 ) {
   if (demo) {
-    const emit = () =>
-      next(
-        sessionStorage.getItem("smo-demo-admin")
-          ? { email: "admin@example.invalid" }
-          : null,
-      );
+    const emit = () => next(demoAdmin ? { email: demoAccount.email } : null);
     listeners.add(emit);
     emit();
     return () => {
@@ -104,9 +119,10 @@ export function watchAuth(
 }
 export async function login(email: string, password: string) {
   if (demo) {
-    if (email !== "admin@example.invalid" || password !== "demo-only")
+    if (email !== demoAccount.email || password !== demoAccount.password)
       throw Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
-    sessionStorage.setItem("smo-demo-admin", "1");
+    demoAdmin = true;
+    persistDemo("smo-demo-admin", "1");
     listeners.forEach((f) => f());
     return;
   }
@@ -115,7 +131,8 @@ export async function login(email: string, password: string) {
 }
 export async function logout() {
   if (demo) {
-    sessionStorage.removeItem("smo-demo-admin");
+    demoAdmin = false;
+    persistDemo("smo-demo-admin", null);
     listeners.forEach((f) => f());
     return;
   }
