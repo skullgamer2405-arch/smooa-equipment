@@ -28,7 +28,8 @@ import { useData } from "../context";
 import { createBooking, notify } from "../lib/data";
 import { dateLabel, inputDate, parseInputDate } from "../lib/utils";
 import { LineConnection } from "../components/line-connection";
-import { createLineBooking, type LineSession } from "../lib/line";
+import { createLineBooking, lineEnabled } from "../lib/line";
+import { useLine } from "../line-context";
 import { bookingSchema } from "../../shared/booking-schema.js";
 export { bookingSchema };
 type Values = z.infer<typeof bookingSchema>;
@@ -39,8 +40,7 @@ export function BookingPage() {
     navigate = useNavigate();
   const item = equipment.find((e) => e.id === params.get("id"));
   const [submitError, setSubmitError] = useState("");
-  const [lineAccount, setLineAccount] = useState<LineSession | null>(null);
-  const [lineConsent, setLineConsent] = useState(false);
+  const { consent: lineConsent } = useLine();
   const [requestId] = useState(() => crypto.randomUUID());
   const form = useForm<Values>({
     resolver: zodResolver(bookingSchema),
@@ -76,14 +76,15 @@ export function BookingPage() {
         endDate: parseInputDate(data.endDate),
         status: "pending" as const,
       };
-      const id = lineConsent
-        ? await createLineBooking({
-            ...fields,
-            equipmentId: item.id,
-            terms: true,
-            requestId,
-          })
-        : await createBooking(booking);
+      const id =
+        lineConsent && lineEnabled
+          ? await createLineBooking({
+              ...fields,
+              equipmentId: item.id,
+              terms: true,
+              requestId,
+            })
+          : await createBooking(booking);
       try {
         const sent = await notify("notify-admin-booking", {
           ...fields,
@@ -97,7 +98,7 @@ export function BookingPage() {
         announce("บันทึกคำขอแล้ว แต่การแจ้งเตือนยังไม่สำเร็จ");
       }
       navigate("/success.html", {
-        state: { bookingId: id, lineRequested: lineConsent },
+        state: { bookingId: id, lineRequested: lineConsent && lineEnabled },
       });
     } catch (e) {
       setSubmitError(
@@ -205,12 +206,7 @@ export function BookingPage() {
                   className="grid min-w-0 gap-6 border-0 p-0"
                 >
                   <legend className="sr-only">ข้อมูลคำขอยืม</legend>
-                  <LineConnection
-                    session={lineAccount}
-                    onChange={setLineAccount}
-                    consent={lineConsent}
-                    onConsent={setLineConsent}
-                  />
+                  <LineConnection />
                   <Card>
                     <CardContent className="p-5 md:p-6">
                       <div className="section-label">

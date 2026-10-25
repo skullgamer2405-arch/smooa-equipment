@@ -39,6 +39,7 @@ const AdminPage = lazy(() =>
   import("./pages/admin").then((m) => ({ default: m.AdminPage })),
 );
 import { Empty } from "./components/shared";
+import { LineProvider, LineStatusBar } from "./line-context";
 const links = [
   { to: "/", label: "หน้าหลัก", icon: Home },
   { to: "/equipment.html", label: "อุปกรณ์", icon: Package },
@@ -176,6 +177,7 @@ function Shell() {
           </div>
         </div>
       </header>
+      <LineStatusBar />
       <main
         ref={main}
         id="main"
@@ -260,7 +262,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <DataProvider>
-        <Shell />
+        <LineProvider>
+          <Shell />
+        </LineProvider>
       </DataProvider>
     </BrowserRouter>
   );

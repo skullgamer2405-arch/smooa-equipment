@@ -4,6 +4,11 @@ import * as XLSX from "@e965/xlsx";
 import QRCode from "qrcode";
 import { fixtureState } from "../src/lib/fixtures";
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      sessionStorage.setItem("smo-line-notifications-v1-demo", "declined");
+    } catch {}
+  });
   await page.route(/^https?:\/\//, (route) =>
     new URL(route.request().url()).origin === "http://127.0.0.1:5174"
       ? route.continue()

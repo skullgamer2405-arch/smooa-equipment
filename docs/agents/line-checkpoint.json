@@ -15,7 +15,7 @@
     "typescript": "passed",
     "frontend_unit_tests": 20,
     "server_fixture_tests": 12,
-    "browser_fixture_tests": 20,
+    "browser_fixture_tests": 26,
     "demo_build": "passed",
     "liff_enabled_build_with_fake_public_id": "passed",
     "rich_menu": "2500x843 PNG, locally generated and visually inspected"
@@ -42,5 +42,13 @@
     "secure deployment credentials and verified admin allowlist",
     "production backend/rules hardening",
     "isolated integration trial before publishing"
-  ]
+  ],
+  "entry_permission": {
+    "automatic_prompt": "borrower pages including direct QR/booking links",
+    "scope": "browser session, shared with booking",
+    "decline": "remembers until browser session ends; can reopen from status bar",
+    "admin_entry": "exempt",
+    "demo": "clearly labelled simulation; no real LINE requests",
+    "browser_storage": "preference only; no application token or LINE user ID storage"
+  }
 }
