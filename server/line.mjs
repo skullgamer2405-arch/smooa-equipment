@@ -211,12 +211,24 @@ export function createLineService({
         tx.update(ref, { status: "needs_review", leaseUntil: null });
         return null;
       }
+      const payload = {
+        to: line.userId,
+        messages: [{ type: "text", text: notificationText(b, job.kind) }],
+      };
+      if (
+        job.payload &&
+        JSON.stringify(job.payload) !== JSON.stringify(payload)
+      ) {
+        tx.update(ref, { status: "needs_review", leaseUntil: null });
+        return null;
+      }
       tx.update(ref, {
         status: "sending",
+        payload,
         firstAttemptAt: job.firstAttemptAt || time,
         leaseUntil: new Date(+time + 90000),
       });
-      return { job, booking: b, userId: line.userId };
+      return { job, payload };
     });
     if (!leased) return "unchanged";
     try {
@@ -229,15 +241,7 @@ export function createLineService({
             Authorization: `Bearer ${env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN}`,
             "X-Line-Retry-Key": leased.job.retryKey,
           },
-          body: JSON.stringify({
-            to: leased.userId,
-            messages: [
-              {
-                type: "text",
-                text: notificationText(leased.booking, leased.job.kind),
-              },
-            ],
-          }),
+          body: JSON.stringify(leased.payload),
           signal: AbortSignal.timeout(10000),
         },
       );
@@ -248,8 +252,21 @@ export function createLineService({
           response.status === 409 &&
           response.headers.get("x-line-accepted-request-id")
         )
-      )
+      ) {
+        if (
+          response.status >= 400 &&
+          response.status < 500 &&
+          response.status !== 429
+        ) {
+          await ref.update({
+            status: "needs_review",
+            leaseUntil: null,
+            lastHttpStatus: response.status,
+          });
+          return "needs_review";
+        }
         throw Error("LINE_PUSH_REJECTED");
+      }
       await ref.update({ status: "sent", acceptedAt: now(), leaseUntil: null });
       return "accepted"; // API acceptance is not proof the user has read/received it.
     } catch {

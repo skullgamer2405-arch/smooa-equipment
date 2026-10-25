@@ -234,6 +234,10 @@ export function AdminPage() {
           announce(
             "อนุมัติแล้ว แต่ LINE ยังส่งไม่สำเร็จ ระบบเก็บไว้ให้ตรวจและลองส่งใหม่",
           );
+        if (result?.notification === "needs_review")
+          announce(
+            "อนุมัติแล้ว แต่ LINE ส่งไม่สำเร็จ กรุณาให้ผู้ดูแลตรวจการตั้งค่าแจ้งเตือน",
+          );
         if (booking.applicantEmail) {
           try {
             await api.notify(

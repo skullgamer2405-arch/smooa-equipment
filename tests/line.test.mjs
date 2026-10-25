@@ -115,7 +115,8 @@ function fixture() {
   const db = memoryDb(),
     pushes = [];
   let time = new Date("2035-06-10T02:00:00Z"),
-    response = 200;
+    response = 200,
+    responseHeaders = {};
   db.rows.set("equipment/fixture", {
     title: "ลำโพงทดสอบ",
     assetCode: "FIXTURE-01",
@@ -136,7 +137,7 @@ function fixture() {
       payload: JSON.parse(options.body),
       key: options.headers["X-Line-Retry-Key"],
     });
-    return new Response(null, { status: response });
+    return new Response(null, { status: response, headers: responseHeaders });
   };
   const service = createLineService({ db, env, request, now: () => time });
   const body = {
@@ -167,8 +168,9 @@ function fixture() {
     setTime: (value) => {
       time = new Date(value);
     },
-    setResponse: (value) => {
+    setResponse: (value, headers = {}) => {
       response = value;
+      responseHeaders = headers;
     },
   };
 }
@@ -249,6 +251,7 @@ test("approval commits once and push retries reuse a durable key; concurrent del
   await Promise.all([f.service.deliver(job), f.service.deliver(job)]);
   assert.equal(f.pushes.length, 2);
   assert.equal(f.pushes[0].key, f.pushes[1].key);
+  assert.deepEqual(f.pushes[0].payload, f.pushes[1].payload);
   await f.service.approve(key, "", "admin-fixture");
   assert.equal(f.pushes.length, 2);
   assert.match(f.pushes[1].payload.messages[0].text, /อนุมัติ/);
@@ -281,8 +284,9 @@ test("reminders use Bangkok dates, send before/due once and stop after return or
   const before = g.pushes.length;
   g.setResponse(200);
   await g.service.reminders();
-  // The queued approval may be accepted, but the obsolete return reminder is skipped.
-  assert.equal(g.pushes.length, before + 1);
+  // Do not change an ambiguous retry payload; obsolete reminders are skipped.
+  assert.equal(g.pushes.length, before);
+  assert([...g.db.rows.values()].some((row) => row.status === "needs_review"));
 });
 test("ambiguous pushes stop before the 24-hour LINE deduplication expiry", async () => {
   const f = fixture(),
@@ -417,4 +421,23 @@ test("a queued approval/reminder is skipped after return; reminders never send b
     1,
     "return cancels a queued approval notice too",
   );
+});
+
+test("only documented duplicate acceptance counts as sent; other 4xx require review", async () => {
+  for (const [status, headers, expected] of [
+    [409, { "x-line-accepted-request-id": "fixture-request" }, "accepted"],
+    [409, {}, "needs_review"],
+    [400, {}, "needs_review"],
+    [401, {}, "needs_review"],
+  ]) {
+    const f = fixture(),
+      key = await f.service.createBooking(f.body);
+    f.setResponse(status, headers);
+    assert.equal(await f.service.approve(key, "", "admin-fixture"), expected);
+    await f.service.reminders();
+    const approvalCalls = f.pushes.filter((p) =>
+      p.payload.messages[0].text.includes("อนุมัติ"),
+    );
+    assert.equal(approvalCalls.length, 1);
+  }
 });

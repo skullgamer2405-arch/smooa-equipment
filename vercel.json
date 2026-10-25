@@ -22,7 +22,7 @@
     "api": {
       "root": ".",
       "framework": "express",
-      "runtime": "nodejs24.x",
+      "runtime": "node",
       "entrypoint": "server.js",
       "installCommand": "npm ci",
       "buildCommand": "node --check server.js",

@@ -1,9 +1,46 @@
 {
   "status": "implemented_with_external_setup_pending",
   "scope": "LINE OA Rich Menu + LIFF booking identity + approval and return reminders",
-  "schedule": {"timezone": "Asia/Bangkok", "target_time": "09:00", "days": ["day_before_due", "due_day"], "vercel_cron_utc": "0 2 * * *", "hobby_precision": "09:00–09:59"},
-  "validation": {"typescript": "passed", "frontend_unit_tests": 20, "server_fixture_tests": 11, "browser_fixture_tests": 20, "demo_build": "passed", "liff_enabled_build_with_fake_public_id": "passed", "rich_menu": "2500x843 PNG, locally generated and visually inspected"},
-  "not_verified": ["real LINE Login/LIFF and linked OA identity", "actual LINE delivery and OA quota", "Firebase Admin credentials and deployed rules/index", "real Firebase admin auth on Vercel", "scheduled cron invocation and timing", "Firestore emulator coverage"],
-  "external_changes": {"line_messages_sent": false, "rich_menu_published": false, "firebase_production_changes": false, "production_deployment": false},
-  "remaining_setup": ["Messaging API channel", "LINE Login channel under the same provider", "LIFF ID and stable public HTTPS endpoint", "OA friend URL", "secure deployment credentials and verified admin allowlist", "production backend/rules hardening", "isolated integration trial before publishing"]
+  "schedule": {
+    "timezone": "Asia/Bangkok",
+    "target_time": "09:00",
+    "days": [
+      "day_before_due",
+      "due_day"
+    ],
+    "vercel_cron_utc": "0 2 * * *",
+    "hobby_precision": "09:00–09:59"
+  },
+  "validation": {
+    "typescript": "passed",
+    "frontend_unit_tests": 20,
+    "server_fixture_tests": 12,
+    "browser_fixture_tests": 20,
+    "demo_build": "passed",
+    "liff_enabled_build_with_fake_public_id": "passed",
+    "rich_menu": "2500x843 PNG, locally generated and visually inspected"
+  },
+  "not_verified": [
+    "real LINE Login/LIFF and linked OA identity",
+    "actual LINE delivery and OA quota",
+    "Firebase Admin credentials and deployed rules/index",
+    "real Firebase admin auth on Vercel",
+    "scheduled cron invocation and timing",
+    "Firestore emulator coverage"
+  ],
+  "external_changes": {
+    "line_messages_sent": false,
+    "rich_menu_published": false,
+    "firebase_production_changes": false,
+    "production_deployment": false
+  },
+  "remaining_setup": [
+    "Messaging API channel",
+    "LINE Login channel under the same provider",
+    "LIFF ID and stable public HTTPS endpoint",
+    "OA friend URL",
+    "secure deployment credentials and verified admin allowlist",
+    "production backend/rules hardening",
+    "isolated integration trial before publishing"
+  ]
 }
