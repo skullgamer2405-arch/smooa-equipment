@@ -20,3 +20,7 @@ Firebase Auth/Firestore, existing document shapes and statuses, `.html` and clea
 Foundation, all six pages and the admin workflows are implemented by the primary agent. See `ui-checkpoint.json` for actual checks: clean npm ci/build, 6 unit tests, 15 browser cases, plus focused accessibility/touch-target reruns after final visual refinements. The font was verified from the user's archive and loaded by Chromium. Production route/font GETs and missing API/asset 404s were checked. UI fixture testing does not prove live Firebase login/write or real email integration.
 
 The remaining external prerequisite is Gemini Pro: no endpoint key, Google/provider login, model entitlement or tool-call check is verified. Gateway is loopback-only and rejects unauthenticated catalog calls. No code was handed to Gemini and no Gemini quota was used. The next worker must verify secure connection readiness before any model run, then review the existing implementation rather than recreating completed pages. Preserve user changes, avoid paid/Flash fallback, and update the checkpoint after each reviewed task.
+
+## Current UX and privacy implementation
+
+The newer implementation and its real validation are tracked in `ux-hardening-checkpoint.json` and `ux-privacy-rollout.md`. The six-page migration above is historical context. Claude and Gemini workers remain unconnected; `omniroute-next-task.md` gives the guarded handoff.

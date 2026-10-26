@@ -1,5 +1,7 @@
 # เชื่อมเว็บยืมอุปกรณ์กับ LINE OA
 
+> ขั้นตอนเปิดใช้งานจริงและการย้ายข้อมูลล่าสุดอยู่ที่ [ux-privacy-rollout.md](agents/ux-privacy-rollout.md) เอกสารส่วนล่างบางหัวข้ออธิบาย implementation ก่อนการปรับสิทธิ์และปฏิทินสาธารณะ
+
 LINE OA ที่เจ้าของระบุคือ **@474ezowf** ลิงก์เพิ่มเพื่อน: [เปิด SMO OA](https://line.me/R/ti/p/@474ezowf) ตั้งเป็นค่าเริ่มต้นใน `shared/line-oa.js` แล้ว และเปลี่ยนได้ด้วย `VITE_LINE_OA_URL`
 
 โค้ดรองรับแล้ว แต่ **ยังไม่ได้เปิดการส่งข้อความจริง** เพราะบัญชีนี้มี LINE OA แล้ว แต่ยังไม่มี LINE Developers/LIFF และยังไม่ได้ใส่ credentials ใน Vercel เว็บ Preview ใช้ข้อมูลจำลองและปิด API จริงเสมอ
@@ -59,7 +61,7 @@ Endpoint ต้องเปิดจากมือถือได้โดย�
 | `VITE_LINE_OA_URL` | ค่าเริ่มต้น `https://line.me/R/ti/p/@474ezowf` ตั้งแล้ว ไม่จำเป็นต้องระบุซ้ำ ยกเว้นต้องการเปลี่ยนบัญชี |
 | `LINE_LOGIN_CHANNEL_ID` | Channel ID ของ **LINE Login** |
 | `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | Access token ของ **Messaging API** |
-| `LINE_ADMIN_EMAILS` | อีเมลผู้ดูแล Firebase ที่อนุญาตให้อนุมัติ คั่นหลายบัญชีด้วย comma และต้องยืนยันอีเมลแล้ว |
+| Firebase custom claim `admin=true` | ตั้งผ่าน `scripts/admin-claim.mjs` สำหรับ UID ผู้ดูแลที่ยืนยันอีเมลแล้ว ไม่ใช้ environment allowlist |
 | `CRON_SECRET` | ค่าสุ่มลับอย่างน้อย 32 ตัวอักษร Vercel Cron ใช้ค่านี้ใน Authorization header |
 | `PUBLIC_APP_URL` | โดเมน HTTPS ถาวรของเว็บ |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Service account ของ Firebase ฝั่งเซิร์ฟเวอร์ เก็บเป็น Secret เท่านั้น |
@@ -118,7 +120,7 @@ npm run line:check
 
 - `server/line.mjs`: ตรวจ ID token กับ LINE โดยใช้ Login Channel ID และตรวจ issuer/audience/expiry/subject ซ้ำ ไม่รับ LINE user ID จาก client เป็นหลักฐาน
 - สร้าง booking และ `lineBookingRecipients/{bookingId}` ใน transaction เดียว เก็บ LINE user ID/ความยินยอมแยกจาก booking ที่ browser อ่านได้ ไม่เก็บ ID token ไว้ใน Firestore
-- อนุมัติผ่าน `/api/line/bookings/:id/approve`: ตรวจ Firebase ID token ที่ไม่ถูก revoke, verified email และ allowlist แล้วบันทึกการอนุมัติ/สถานะอุปกรณ์/งานแจ้งเตือนใน transaction เดียว ไม่มี fallback ให้ผ่านเมื่อ credentials หาย
+- อนุมัติผ่าน `/api/line/bookings/:id/approve`: ตรวจ Firebase ID token ที่ไม่ถูก revoke, verified email และ custom claim `admin=true` แล้วบันทึกการอนุมัติ/สถานะอุปกรณ์/งานแจ้งเตือนใน transaction เดียว ไม่มี fallback ให้ผ่านเมื่อ credentials หาย
 - มี lease 90 วินาทีและ `X-Line-Retry-Key` ที่เก็บถาวร ป้องกันการรันซ้ำ/ชนกัน เก็บข้อความ/ผู้รับตอนเริ่มส่งและใช้ payload เดิมกับ key เดิมเมื่อ retry หากข้อมูลเปลี่ยนระหว่างผลส่งที่กำกวมจะหยุดเป็น `needs_review` แทนส่งข้อมูลใหม่ด้วย key เก่า เมื่อคำตอบ LINE หายจะใช้ key เดิม ภายในช่วง deduplication 24 ชั่วโมงของ LINE เท่านั้น งานกำกวมเกิน 23 ชั่วโมงจะเป็น `needs_review` ไม่สุ่ม key ใหม่แล้วส่งซ้ำเอง
 - `sent` หมายถึง LINE API รับคำขอหรือยืนยันว่ารับ key นั้นก่อนแล้ว ไม่ยืนยัน delivery/read; ผู้รับที่บล็อก OA อาจไม่เห็นข้อความแม้ API รับคำขอ
 - cron คืน HTTP 503 พร้อม `incomplete` เมื่อมีงานค้าง/เกิน batch/ต้องตรวจเอง; ตรวจ Vercel logs และ `lineNotifications.status` ไม่มี automatic retry ของ Vercel Cron ที่รับประกันไว้ ใช้ secret ในระบบ secret store เพื่อเรียก endpoint ซ้ำ ห้ามใส่ secret ใน URL
@@ -128,6 +130,6 @@ npm run line:check
 - คำขอเก่าหรือการอนุมัติจาก legacy frontend ไม่ได้รับการผูก LINE ย้อนหลังโดยอัตโนมัติ ต้องใช้หน้าแอดมินใหม่ที่ build พร้อม LIFF ID; QR/URL เดิมยังใช้งานได้
 - ถ้าถอนความยินยอม ให้ผู้ดูแลปิด `lineBookingRecipients.enabled` หรือลบ mapping ตามนโยบายเก็บข้อมูลขององค์กร บล็อก OA จะหยุดการรับข้อความฝั่งผู้ใช้ แต่ยังไม่มี webhook ซิงก์สถานะบล็อกกลับมา
 
-**ข้อจำกัดก่อน production:** Firestore rules เดิมเปิดอ่าน bookings สาธารณะและถือว่า Firebase user ที่ login แล้วเป็น admin; API อัปโหลด/อีเมลเดิมยังมีประเด็นจาก security audit ต้องแก้ในงาน hardening ก่อนเปิดใช้กับข้อมูลผู้ยืมจริง LINE endpoints ใหม่ปิดตามค่าเริ่มต้นและไม่แก้ปัญหาเก่าทั้งหมดแทนกัน การโหลด Firebase Auth เป็นแบบ lazy เพื่อไม่ให้ปัญหา dependency ของ auth ทำให้ Preview/API ที่ปิดอยู่ล่ม แต่การยืนยัน Firebase จริงบน Vercel ยังต้องตรวจแยกหลังตั้ง credentials
+**ข้อจำกัดก่อน production:** ต้อง deploy rules/indexes ใหม่ ย้ายข้อมูล `publicCalendar` และตรวจ Firebase Auth, Storage, LINE และการส่งอีเมลบน project ทดสอบก่อน ดูลำดับใน `docs/agents/ux-privacy-rollout.md`
 
 เอกสารอ้างอิง: [LIFF development](https://developers.line.biz/en/docs/liff/developing-liff-apps/), [verify ID token](https://developers.line.biz/en/reference/line-login/#verify-id-token), [Messaging API push](https://developers.line.biz/en/reference/messaging-api/#send-push-message), [retrying API requests](https://developers.line.biz/en/docs/messaging-api/retrying-api-request/), [Rich menus](https://developers.line.biz/en/docs/messaging-api/using-rich-menus/), [Vercel Cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing)

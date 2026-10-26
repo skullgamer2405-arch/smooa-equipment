@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Info, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -25,43 +25,44 @@ import {
   Status,
 } from "../components/shared";
 import { useData } from "../context";
-import { createBooking, notify } from "../lib/data";
+import { createBooking, getEquipment, demo } from "../lib/data";
 import { dateLabel, inputDate, parseInputDate } from "../lib/utils";
-import { createLineBooking, lineEnabled } from "../lib/line";
+import { createLineBooking, lineEnabled, lineSession, lineFriendUrl, LineConnectionError } from "../lib/line";
 import { useLine } from "../line-context";
-import { bookingSchema } from "../../shared/booking-schema.js";
+import { readBookingDraft, useBookingDraft, emptyBooking } from "../lib/booking-draft";
+import type { Equipment } from "../lib/types";
+import { bookingSchema, validDay } from "../../shared/booking-schema.js";
 export { bookingSchema };
 type Values = z.infer<typeof bookingSchema>;
 export function BookingPage() {
-  const { equipment, isLoading, announce } = useData();
-  const loading = isLoading("equipment");
+  const { equipment, isLoading } = useData();
+
   const [params] = useSearchParams(),
     navigate = useNavigate();
-  const item = equipment.find((e) => e.id === params.get("id"));
+  const equipmentId = params.get("id") || "";
+  const [singleItem,setSingleItem] = useState<Equipment | null>(null), [itemReady,setItemReady] = useState(false);
+  const item = equipment.find((e) => e.id === equipmentId) || singleItem;
+  useEffect(()=>{let active=true;setItemReady(false);getEquipment(equipmentId).then(value=>{if(active)setSingleItem(value);}).catch(()=>{if(active)setSubmitError("โหลดอุปกรณ์ไม่สำเร็จ กรุณากลับไปเลือกรายการอีกครั้ง");}).finally(()=>{if(active)setItemReady(true);});return()=>{active=false;};},[equipmentId]);
+  const loading = isLoading("equipment") && !itemReady;
+  const [initialDraft] = useState(()=>readBookingDraft(equipmentId));
+  const [recovery,setRecovery] = useState(false), [reconnecting,setReconnecting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const { consent: lineConsent, ready: lineReady } = useLine();
-  const [requestId] = useState(() => crypto.randomUUID());
+
   const form = useForm<Values>({
     resolver: zodResolver(bookingSchema),
-    defaultValues: {
-      fullName: "",
-      studentId: "",
-      faculty: "",
-      department: "",
-      affiliation: "",
-      applicantEmail: "",
-      applicantPhone: "",
-      activityName: "",
-      reason: "",
-      startDate: "",
-      endDate: "",
-      terms: false,
+    defaultValues: initialDraft?.values || {
+      ...emptyBooking,
+      startDate: validDay(params.get("startDate") || "") ? params.get("startDate")! : "",
+      endDate: validDay(params.get("endDate") || "") ? params.get("endDate")! : "",
     },
     shouldFocusError: true,
   });
+  const draft = useBookingDraft(equipmentId, form, initialDraft);
+  const { requestId } = draft;
   const values = form.watch();
   const errors = form.formState.errors;
-  async function submit(data: Values) {
+  async function submit(data: Values, withoutLine = false) {
     if (!lineReady || !item || item.status !== "available") return;
     setSubmitError("");
     try {
@@ -76,30 +77,20 @@ export function BookingPage() {
         status: "pending" as const,
       };
       const id =
-        lineConsent && lineEnabled
+        lineConsent && lineEnabled && !withoutLine
           ? await createLineBooking({
               ...fields,
               equipmentId: item.id,
               terms: true,
               requestId,
             })
-          : await createBooking(booking);
-      try {
-        const sent = await notify("notify-admin-booking", {
-          ...fields,
-          bookingId: id,
-          equipmentName: item.title,
-          equipmentCode: item.assetCode,
-        });
-        if (!sent.success)
-          announce("บันทึกคำขอแล้ว แต่การแจ้งเตือนยังไม่สำเร็จ");
-      } catch {
-        announce("บันทึกคำขอแล้ว แต่การแจ้งเตือนยังไม่สำเร็จ");
-      }
-      navigate("/success.html", {
-        state: { bookingId: id, lineRequested: lineConsent && lineEnabled },
-      });
+          : await createBooking(booking, requestId, lineConsent && !withoutLine);
+      const receipt = { bookingId:id, equipmentName:item.title, assetCode:item.assetCode, startDate:data.startDate, endDate:data.endDate, lineRequested:lineConsent && !withoutLine && (lineEnabled || demo) };
+      try { sessionStorage.setItem(`smo-booking-receipt-${demo?"demo":"live"}`, JSON.stringify(receipt)); } catch { /* receipt remains in navigation state */ }
+      draft.clear(true);
+      navigate("/success.html", { state:receipt });
     } catch (e) {
+      if (e instanceof LineConnectionError) setRecovery(true);
       setSubmitError(
         e instanceof Error ? e.message : "ส่งคำขอไม่สำเร็จ กรุณาลองอีกครั้ง",
       );
@@ -131,6 +122,9 @@ export function BookingPage() {
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? name + "-error" : undefined}
           aria-required={!optional}
+          autoComplete={({fullName:"name",applicantEmail:"email",applicantPhone:"tel"} as Record<string,string>)[name] || "off"}
+          inputMode={name === "studentId" ? "numeric" : type === "email" ? "email" : type === "tel" ? "tel" : undefined}
+          spellCheck={!["studentId","applicantEmail"].includes(name)}
           {...(type === "date"
             ? {
                 min:
@@ -165,6 +159,11 @@ export function BookingPage() {
         title="เตรียมอุปกรณ์ให้พร้อมสำหรับกิจกรรม"
         description="กรอกข้อมูลให้ครบถ้วน แอดมินจะตรวจสอบและติดต่อยืนยันการยืม"
       />
+      {item && <section aria-label="อุปกรณ์ที่เลือก" className="mb-6 flex items-center gap-4 rounded-lg border bg-white p-4">
+        <div className="w-24 shrink-0 rounded bg-muted p-2"><EquipmentImage equipment={item}/></div>
+        <div className="min-w-0"><p className="text-sm muted">{item.assetCode}</p><h2 className="text-xl my-1">{item.title}</h2><Status value={item.status}/></div>
+      </section>}
+      {draft.restored && <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted p-4"><p>กลับมากรอกต่อจากร่างที่บันทึกไว้ในรอบใช้งานนี้</p><Button type="button" variant="outline" onClick={()=>draft.clear()}>ล้างร่าง</Button></div>}
       <DataStatus collection="equipment">
         {!item && !loading ? (
           <Empty
@@ -181,7 +180,7 @@ export function BookingPage() {
             <div className="grid items-start gap-6 lg:grid-cols-[1fr_340px]">
               <form
                 id="borrow-form"
-                onSubmit={form.handleSubmit(submit)}
+                onSubmit={form.handleSubmit(data=>submit(data))}
                 className="grid gap-6"
                 noValidate
                 aria-describedby={
@@ -209,30 +208,6 @@ export function BookingPage() {
                     <CardContent className="p-5 md:p-6">
                       <div className="section-label">
                         <span className="number-step">1</span>
-                        <h2 className="text-xl">ข้อมูลผู้ยืม</h2>
-                      </div>
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        {field("fullName", "ชื่อ–นามสกุล")}
-                        {field("studentId", "รหัสนักศึกษา")}
-                        {field("faculty", "คณะ")}
-                        {field("department", "สาขา")}
-                        {field("applicantEmail", "อีเมล", "email")}
-                        {field("applicantPhone", "เบอร์โทรศัพท์", "tel", true)}
-                        <div className="sm:col-span-2">
-                          {field(
-                            "affiliation",
-                            "หน่วยงาน / ชมรม",
-                            "text",
-                            true,
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-5 md:p-6">
-                      <div className="section-label">
-                        <span className="number-step">2</span>
                         <h2 className="text-xl">
                           รายละเอียดกิจกรรมและวันใช้งาน
                         </h2>
@@ -273,19 +248,38 @@ export function BookingPage() {
                       </div>
                     </CardContent>
                   </Card>
+                  <Card>
+                    <CardContent className="p-5 md:p-6">
+                      <div className="section-label">
+                        <span className="number-step">2</span>
+                        <h2 className="text-xl">ข้อมูลผู้ยืม</h2>
+                      </div>
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        {field("fullName", "ชื่อ–นามสกุล")}
+                        {field("studentId", "รหัสนักศึกษา")}
+                        {field("faculty", "คณะ")}
+                        {field("department", "สาขา")}
+                        {field("applicantEmail", "อีเมล", "email")}
+                        {field("applicantPhone", "เบอร์โทรศัพท์", "tel", true)}
+                        <div className="sm:col-span-2">
+                          {field(
+                            "affiliation",
+                            "หน่วยงาน / ชมรม",
+                            "text",
+                            true,
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </fieldset>
               </form>
               <aside className="lg:sticky lg:top-28">
                 <Card>
                   <CardContent className="p-5 md:p-6">
-                    <div className="rounded-lg bg-muted p-4 mb-4">
-                      <EquipmentImage equipment={item} />
-                    </div>
-                    <p className="eyebrow">
-                      อุปกรณ์ที่เลือก · {item.assetCode}
-                    </p>
-                    <h2 className="text-xl mb-3">{item.title}</h2>
-                    <Status value={item.status} />
+
+                    <h2 className="text-xl mb-3">ตรวจคำขอก่อนส่ง</h2>
+                    <p className="text-sm muted">{item.title} · {item.assetCode}</p>
                     <dl className="my-5 grid gap-3 border-y py-4 text-sm">
                       <div>
                         <dt className="muted">ผู้ยืม</dt>
@@ -309,6 +303,9 @@ export function BookingPage() {
                         <label className="flex min-h-11 items-start gap-3 cursor-pointer">
                           <Checkbox
                             className="mt-1 shrink-0"
+                            name={form.register("terms").name}
+                            ref={form.register("terms").ref}
+                            onBlur={form.register("terms").onBlur}
                             checked={values.terms}
                             onCheckedChange={(checked) =>
                               form.setValue("terms", checked === true, {
@@ -384,6 +381,19 @@ export function BookingPage() {
           )
         )}
       </DataStatus>
+      <Dialog open={recovery} onOpenChange={setRecovery}>
+        <DialogContent>
+          <DialogTitle>ตรวจบัญชี LINE ก่อนส่งคำขอ</DialogTitle>
+          <DialogDescription>ข้อมูลในแบบฟอร์มยังอยู่ คำขอยังไม่ได้ถูกส่งผ่าน LINE กรุณายืนยันบัญชี หรือตัดสินใจส่งครั้งนี้โดยไม่รับแจ้งเตือน LINE</DialogDescription>
+          {submitError&&<p role="alert" className="text-destructive">{submitError}</p>}
+          <div className="grid gap-3">
+            <Button disabled={reconnecting} onClick={async()=>{setReconnecting(true);try{const session=await lineSession(true);if(session?.friend){setRecovery(false);await form.handleSubmit(data=>submit(data))();}else if(session)setSubmitError("กรุณาเพิ่มเพื่อน SMO OA แล้วลองยืนยันบัญชีอีกครั้ง");}catch{setSubmitError("ยืนยันบัญชีไม่สำเร็จ กรุณาลองใหม่ ข้อมูลในแบบฟอร์มยังอยู่");}finally{setReconnecting(false);}}}>{reconnecting?"กำลังยืนยันบัญชี…":"ยืนยันบัญชีและลองส่งอีกครั้ง"}</Button>
+            {lineFriendUrl()&&<Button asChild variant="outline"><a href={lineFriendUrl()!} target="_blank" rel="noopener noreferrer">เปิด SMO OA</a></Button>}
+            <Button variant="outline" disabled={reconnecting} onClick={()=>{setRecovery(false);void form.handleSubmit(data=>submit(data,true))();}}>ส่งครั้งนี้โดยไม่รับแจ้งเตือน LINE</Button>
+            <Button variant="ghost" onClick={()=>setRecovery(false)}>กลับไปตรวจแบบฟอร์ม</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

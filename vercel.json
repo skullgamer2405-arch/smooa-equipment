@@ -10,11 +10,11 @@
       "outputDirectory": "dist",
       "rewrites": [
         {
-          "source": "/:page(equipment|calendar|booking|success|admin)",
+          "source": "/:page(equipment|calendar|booking|success|admin|my-bookings)",
           "destination": "/index.html"
         },
         {
-          "source": "/:page(equipment|calendar|booking|success|admin).html",
+          "source": "/:page(equipment|calendar|booking|success|admin|my-bookings).html",
           "destination": "/index.html"
         }
       ]

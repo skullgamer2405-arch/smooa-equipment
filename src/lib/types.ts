@@ -28,6 +28,8 @@ export interface Booking {
   status: "pending" | "approved" | "rejected" | "returned";
   createdAt?: unknown;
   adminNote?: string;
+  requestId?: string;
+  lineLinked?: boolean;
 }
 export interface CalendarEntry {
   id: string;
@@ -39,3 +41,7 @@ export interface CalendarEntry {
   equipmentName?: string;
 }
 export type CollectionName = "equipment" | "bookings" | "calendarEntries";
+export type PublicEvent = { id: string; equipmentId: string; equipmentName: string; assetCode: string; startDay: string; endDay: string; status: Booking["status"] };
+export type MyBooking = PublicEvent & { activityName: string; adminNote: string; createdAt: string };
+export type BookingFilter = "all" | Booking["status"] | "due" | "overdue";
+export type WatchOptions = { filter?: BookingFilter; cursor?: unknown; from?: string; to?: string; size?: number };

@@ -16,6 +16,7 @@ import {
   Home,
   LogOut,
   X,
+  ClipboardList,
 } from "lucide-react";
 import {
   Sheet,
@@ -40,10 +41,13 @@ const AdminPage = lazy(() =>
 );
 import { Empty } from "./components/shared";
 import { LineProvider } from "./line-context";
+import { RouteBoundary } from "./components/route-boundary";
+const MyBookingsPage = lazy(() => import("./pages/my-bookings").then(m=>({default:m.MyBookingsPage})));
 const links = [
   { to: "/", label: "หน้าหลัก", icon: Home },
   { to: "/equipment.html", label: "อุปกรณ์", icon: Package },
   { to: "/calendar.html", label: "ปฏิทิน", icon: CalendarDays },
+  { to: "/my-bookings.html", label: "รายการของฉัน", icon: ClipboardList },
 ];
 function Nav({ mobile = false }: { mobile?: boolean }) {
   const path = useLocation().pathname;
@@ -94,6 +98,7 @@ function Shell() {
         "/calendar.html": "ปฏิทิน",
         "/admin.html": "จัดการระบบ",
         "/success.html": "ส่งคำขอสำเร็จ",
+        "/my-bookings.html": "รายการยืมของฉัน",
       }[titlePath] || "Equipment by SMO") + " | SMO.CRA";
     main.current?.focus();
     window.scrollTo(0, 0);
@@ -183,7 +188,8 @@ function Shell() {
         tabIndex={-1}
         className="container-app min-h-[70vh] outline-none"
       >
-        <Suspense fallback={<p role="status">กำลังเปิดหน้า...</p>}>
+        <RouteBoundary key={location.pathname}>
+        <Suspense fallback={<p role="status">กำลังเปิดหน้า…</p>}>
           <Routes>
             {["/", "/index.html"].map((p) => (
               <Route key={p} path={p} element={<HomePage />} />
@@ -192,7 +198,7 @@ function Shell() {
               <Route key={p} path={p} element={<CatalogPage />} />
             ))}
             {["/booking", "/booking.html"].map((p) => (
-              <Route key={p} path={p} element={<BookingPage />} />
+              <Route key={p} path={p} element={<BookingPage key={new URLSearchParams(location.search).get("id")} />} />
             ))}
             {["/calendar", "/calendar.html"].map((p) => (
               <Route key={p} path={p} element={<CalendarPage />} />
@@ -203,6 +209,7 @@ function Shell() {
             {["/admin", "/admin.html"].map((p) => (
               <Route key={p} path={p} element={<AdminPage />} />
             ))}
+            {["/my-bookings", "/my-bookings.html"].map(p=><Route key={p} path={p} element={<MyBookingsPage/>}/>)}
             <Route
               path="*"
               element={
@@ -218,6 +225,7 @@ function Shell() {
             />
           </Routes>
         </Suspense>
+        </RouteBoundary>
       </main>
       <footer className="border-t bg-white">
         <div className="container-app flex flex-col justify-between gap-4 py-6! text-sm md:flex-row">

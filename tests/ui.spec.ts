@@ -121,8 +121,9 @@ test("booking, guarded approval, calendar and return stay functional", async ({
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await page.goto("/calendar.html");
   await expect(
-    page.getByRole("heading", { name: "กิจกรรมทดสอบ UI" }),
+    page.getByRole("heading", { name: "มีการยืมอุปกรณ์" }).first(),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "กิจกรรมทดสอบ UI" })).toHaveCount(0);
   await page.goto("/admin.html?tab=equipment");
   await page
     .getByRole("button", { name: "รับคืน", exact: true })
@@ -131,6 +132,35 @@ test("booking, guarded approval, calendar and return stay functional", async ({
   await page.getByRole("button", { name: "ยืนยัน", exact: true }).click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   expect(external).toEqual([]);
+});
+test("calendar dates carry into booking and a reloaded draft keeps its request ID", async ({ page }) => {
+  await page.goto("/calendar.html?equipmentId=eq-0&date=2099-01-01");
+  await page.getByRole("link", { name: "ขอยืมอุปกรณ์นี้" }).click();
+  await expect(page.locator("#startDate")).toHaveValue("2099-01-01");
+  await expect(page.locator("#endDate")).toHaveValue("2099-01-01");
+  await page.locator("#fullName").fill("ผู้ยืมร่างทดสอบ");
+  await page.locator("#activityName").fill("กิจกรรมร่างทดสอบ");
+  const readDraftId = () => page.evaluate(() => {
+    const raw = sessionStorage.getItem("smo-booking-draft-v1-demo:eq-0");
+    return raw ? JSON.parse(raw).requestId : null;
+  });
+  await expect.poll(readDraftId).toMatch(/^[0-9a-f-]{36}$/);
+  const savedId = await readDraftId();
+  expect(savedId).toMatch(/^[0-9a-f-]{36}$/);
+  await page.reload();
+  await expect(page.getByText("กลับมากรอกต่อจากร่าง")).toBeVisible();
+  await expect(page.locator("#fullName")).toHaveValue("ผู้ยืมร่างทดสอบ");
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("smo-booking-draft-v1-demo:eq-0") || "{}").requestId)).toBe(savedId);
+  for (const [id,value] of Object.entries({studentId:"DRAFT-001",faculty:"คณะทดสอบ",department:"สาขาทดสอบ",applicantEmail:"student@example.invalid",reason:"ใช้ทดสอบฟอร์ม"})) await page.locator("#"+id).fill(value);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "ส่งคำขอยืม", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "ส่งคำขอยืมสำเร็จ" })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("smo-booking-draft-v1-demo:eq-0"))).toBeNull();
+  const created = await page.evaluate(() => JSON.parse(sessionStorage.getItem("smo-demo-state") || "{}").bookings?.find((item: {fullName:string})=>item.fullName==="ผู้ยืมร่างทดสอบ"));
+  expect(created?.requestId).toBe(savedId);
+  await page.goto("/my-bookings.html");
+  await expect(page.getByText("รายการตัวอย่างสำหรับทดลองใช้งาน")).toBeVisible();
+  await expect(page.getByText(created.id, { exact: true })).toHaveCount(0);
 });
 test("search URL, filters, image fallback and mobile menu", async ({
   page,
@@ -166,6 +196,7 @@ for (const width of [320, 375, 768, 1024, 1440])
       "/booking.html?id=eq-0",
       "/calendar.html",
       "/success.html",
+      "/my-bookings.html",
       "/admin.html",
     ]) {
       await page.goto(path);
@@ -222,6 +253,7 @@ test("six surfaces pass accessibility checks", async ({ page }) => {
     "/booking.html?id=eq-0",
     "/calendar.html",
     "/success.html",
+    "/my-bookings.html",
     "/admin.html",
   ]) {
     await page.goto(path);
@@ -370,6 +402,21 @@ test("equipment create/edit/delete and Word import stay functional", async ({
     page.getByRole("heading", { name: "อุปกรณ์จาก Word", exact: true }),
   ).toBeVisible();
 });
+test("JPEG equipment upload is converted to the PNG contract in the browser", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin.html?tab=equipment");
+  await page.getByRole("button", { name: "เพิ่มอุปกรณ์", exact: true }).click();
+  const jpeg = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2; canvas.height = 2;
+    canvas.getContext("2d")!.fillRect(0,0,2,2);
+    return canvas.toDataURL("image/jpeg").split(",")[1];
+  });
+  await page.getByRole("dialog").locator('input[type="file"]').setInputFiles({name:"fixture.jpg",mimeType:"image/jpeg",buffer:Buffer.from(jpeg,"base64")});
+  const preview = page.getByRole("img", { name: "ตัวอย่างรูปอุปกรณ์" });
+  await expect(preview).toHaveAttribute("src", /^blob:/);
+  expect(await preview.evaluate(async image => (await (await fetch((image as HTMLImageElement).src)).blob()).type)).toBe("image/png");
+});
 
 test("QR download and image scanning use safe local booking links", async ({
   page,
@@ -432,7 +479,7 @@ test("request pagination keeps canonical equipment and missing-item guards on bo
   await page.goto("/admin.html");
   for (const width of [1024, 375]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(page.getByText("หน้า 1 / 2 · 11 รายการ")).toBeVisible();
+    await expect(page.getByText("หน้า 1 · 10 รายการในชุดนี้")).toBeVisible();
     await page
       .getByRole("button", { name: "อนุมัติ", exact: true })
       .filter({ visible: true })
@@ -443,7 +490,7 @@ test("request pagination keeps canonical equipment and missing-item guards on bo
     );
     await page.getByRole("button", { name: "ยกเลิก", exact: true }).click();
     await page.getByRole("button", { name: "หน้าถัดไป" }).click();
-    await expect(page.getByText("หน้า 2 / 2 · 11 รายการ")).toBeVisible();
+    await expect(page.getByText("หน้า 2 · 1 รายการในชุดนี้")).toBeVisible();
     await expect(
       page
         .getByText("ผู้ยืมลำดับ 11", { exact: true })
@@ -461,6 +508,19 @@ test("request pagination keeps canonical equipment and missing-item guards on bo
     ).toBeEnabled();
     await page.getByRole("button", { name: "หน้าก่อนหน้า" }).click();
   }
+});
+test("an admin can approve an item outside the first equipment page", async ({ page }) => {
+  const state = fixtureState();
+  state.equipment = Array.from({length:27},(_,index)=>({
+    ...state.equipment[0], id:`item-${index}`, title:`อุปกรณ์ลำดับ ${index}`,assetCode:`CODE-${index}`,status:"available" as const,
+  }));
+  state.bookings = [{ ...state.bookings[0], id:"off-page-booking", equipmentId:"item-26", equipmentName:"ชื่อที่ผู้ขอยืมระบุ", assetCode:"FORGED", status:"pending", createdAt:new Date().toISOString() }];
+  await page.addInitScript(data=>{sessionStorage.setItem("smo-demo-state",JSON.stringify(data));sessionStorage.setItem("smo-demo-admin","1");},state);
+  await page.goto("/admin.html");
+  const approve = page.getByRole("button", { name:"อนุมัติ", exact:true }).filter({visible:true}).first();
+  await expect(approve).toBeEnabled();
+  await approve.click();
+  await expect(page.getByRole("alertdialog")).toContainText("อุปกรณ์ลำดับ 26 · CODE-26");
 });
 
 test("QR module download failure is reported without navigating away", async ({

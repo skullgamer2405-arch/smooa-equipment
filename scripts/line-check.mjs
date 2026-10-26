@@ -14,14 +14,7 @@ check(
   "LINE_MESSAGING_CHANNEL_ACCESS_TOKEN",
   Boolean(env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN),
 );
-check(
-  "LINE_ADMIN_EMAILS",
-  Boolean(
-    env.LINE_ADMIN_EMAILS?.split(",").every((email) =>
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()),
-    ),
-  ),
-);
+console.log("Admin authorization: verified Firebase identity with admin=true custom claim; verify with an isolated admin account before release.");
 check("CRON_SECRET >= 32 characters", (env.CRON_SECRET?.length || 0) >= 32);
 try {
   const u = new URL(env.PUBLIC_APP_URL);

@@ -39,12 +39,11 @@ export function Status({ value }: { value: string }) {
   );
 }
 export function PageHeading({
-  eyebrow,
   title,
   description,
   action,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -52,7 +51,6 @@ export function PageHeading({
   return (
     <div className="page-heading flex-col sm:flex-row">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         {description && <p className="muted mt-2">{description}</p>}
       </div>
@@ -120,12 +118,13 @@ export function EquipmentImage({
   equipment: Equipment;
   large?: boolean;
 }) {
+  const [failed, setFailed] = useState<string | undefined>();
+  if (!equipment.imageUrl || failed === equipment.imageUrl || safeImage(equipment.imageUrl) === "/equipment-placeholder.svg") return <div role="img" aria-label={equipment.title} className="flex min-h-20 items-center justify-center gap-3 rounded bg-muted p-3 text-sm muted"><Package className="size-7" aria-hidden="true"/><span>ยังไม่มีภาพอุปกรณ์</span></div>;
   return (
     <img
       src={safeImage(equipment.imageUrl)}
-      onError={(e) => {
-        e.currentTarget.onerror = null;
-        e.currentTarget.src = "/equipment-placeholder.svg";
+      onError={() => {
+        setFailed(equipment.imageUrl);
       }}
       alt={equipment.title}
       width={large ? 1000 : 480}
@@ -159,12 +158,13 @@ export function EquipmentCard({ equipment }: { equipment: Equipment }) {
         <Status value={equipment.status} />
         <p className="muted mt-3 line-clamp-2 min-h-12 text-sm">
           {equipment.description ||
-            "ตรวจสอบรายละเอียดและความพร้อมก่อนส่งคำขอยืม"}
+            "สอบถามรายละเอียดเพิ่มเติมจากผู้ดูแลก่อนยืม"}
         </p>
-        <div className="mt-5 flex gap-2">
+        <Link className="mt-2 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4" to={"/calendar.html?equipmentId="+encodeURIComponent(equipment.id)}>ดูวันใช้งานในปฏิทิน</Link>
+        <div className="mt-3 flex gap-2">
           <Button className="flex-1" asChild>
             <Link to={"/booking.html?id=" + encodeURIComponent(equipment.id)}>
-              ดูรายละเอียด <ArrowRight />
+              {equipment.status === "available" ? "ขอยืมอุปกรณ์นี้" : "ดูสถานะอุปกรณ์"} <ArrowRight />
             </Link>
           </Button>
           <QRDialog equipment={equipment} />

@@ -1,16 +1,16 @@
 {
   "scripts": {
     "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:api\"",
-    "dev:web": "vite --host 0.0.0.0",
+    "dev:web": "vite --configLoader native --host 0.0.0.0",
     "dev:api": "node --watch server.js",
-    "dev:demo": "vite --host 0.0.0.0 --mode demo",
+    "dev:demo": "vite --configLoader native --host 0.0.0.0 --mode demo",
     "dev:convex": "convex dev",
     "dev:vercel": "npx vercel@65.2.0 dev",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build --configLoader native",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run src",
+    "test": "vitest run src --configLoader native",
     "test:e2e": "playwright test",
-    "test:server": "node --test tests/server.test.mjs tests/line.test.mjs",
+    "test:server": "node --test tests/server.test.mjs tests/line.test.mjs tests/apps-script.test.mjs",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
     "omniroute:check": "node scripts/omniroute-check.mjs",
@@ -42,7 +42,8 @@
     "react-hook-form": "^7.91.0",
     "react-router-dom": "^7.18.4",
     "tailwind-merge": "^3.7.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "pngjs": "^5.0.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

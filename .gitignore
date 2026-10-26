@@ -12,6 +12,7 @@ public/uploads/
 
 .local/
 .vercel/
+.cache/
 .env*
 !.env.example
 !.env.demo

@@ -67,6 +67,14 @@
       {
         "source": "/success.html",
         "destination": "/index.html"
+      },
+      {
+        "source": "/my-bookings",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/my-bookings.html",
+        "destination": "/index.html"
       }
     ]
   },

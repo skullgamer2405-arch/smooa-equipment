@@ -10,6 +10,7 @@ export type LineSession = {
 };
 let initialization:
   Promise<(typeof import("@line/liff"))["default"]> | undefined;
+export class LineConnectionError extends Error {}
 export async function initializeLine() {
   if (!lineEnabled) throw Error("ยังไม่ได้เปิดใช้งานการเชื่อมต่อ LINE");
   initialization ??= import("@line/liff")
@@ -65,9 +66,11 @@ export function lineFriendUrl() {
   }
 }
 export async function createLineBooking(data: Record<string, unknown>) {
-  const session = await lineSession();
+  let session;
+  try { session = await lineSession(); }
+  catch { throw new LineConnectionError("ตรวจบัญชี LINE ไม่สำเร็จ ข้อมูลในแบบฟอร์มยังอยู่ กรุณาลองยืนยันบัญชีอีกครั้ง"); }
   if (!session?.friend)
-    throw Error(
+    throw new LineConnectionError(
       "ตรวจบัญชี LINE ไม่สำเร็จ กรุณาเปิดเว็บอีกครั้งจาก Rich Menu ของ SMO OA และตรวจว่าไม่ได้บล็อกบัญชี",
     );
   const r = await fetch("/api/line/bookings", {
@@ -79,12 +82,8 @@ export async function createLineBooking(data: Record<string, unknown>) {
       lineConsent: true,
     }),
   });
-  if (!r.ok)
-    throw Error(
-      r.status === 401
-        ? "การเชื่อมต่อ LINE หมดอายุ กรุณาเปิดเว็บอีกครั้งจาก Rich Menu ของ SMO OA"
-        : "บันทึกคำขอผ่าน LINE ไม่สำเร็จ กรุณาลองใหม่",
-    );
+  if (r.status === 401) throw new LineConnectionError("การเชื่อมต่อ LINE หมดอายุ กรุณายืนยันบัญชีอีกครั้ง");
+  if (!r.ok) throw Error("บันทึกคำขอผ่าน LINE ไม่สำเร็จ กรุณาลองส่งคำขอเดิมอีกครั้ง");
   return (await r.json()).bookingId as string;
 }
 export async function approveWithLine(bookingId: string, note: string) {

@@ -2,13 +2,8 @@ import { Router } from "express";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { bookingSchema, bangkokDay } from "../shared/booking-schema.js";
-
-class ApiError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
+import { ApiError, adminIdentity } from "./http.mjs";
+import { publicBooking } from "../shared/calendar.js";
 const id = z.string().regex(/^[\p{L}\p{N}_-]{1,150}$/u);
 const requestSchema = z.object({
   idToken: z.string().min(1).max(8192),
@@ -157,6 +152,7 @@ export function createLineService({
         approvedBy: adminUid,
       });
       tx.update(eq, { status: "unavailable", returnDate: b.endDate });
+      tx.set(db.collection("publicCalendar").doc(bookingId), publicBooking(bookingId, { ...b, status: "approved" }));
       if (linked) {
         tx.update(recipient, { approved: true });
         tx.create(job, newJob(bookingId, "approval"));
@@ -164,6 +160,7 @@ export function createLineService({
     });
     // The approval and outbox are committed together. A delivery failure never undoes approval.
     if (!linked) return "not_linked";
+    if (env.LINE_ENABLED !== "true" || !env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN) return "queued";
     try {
       return await deliver(job.id);
     } catch {
@@ -171,6 +168,7 @@ export function createLineService({
     }
   }
   async function deliver(key) {
+    if (env.LINE_ENABLED !== "true" || !env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN) return "queued";
     const ref = jobs.doc(key),
       time = now();
     const leased = await db.runTransaction(async (tx) => {
@@ -350,7 +348,31 @@ export function createLineService({
         results.some((x) => x === "queued"),
     };
   }
-  return { createBooking, approve, deliver, reminders };
+  async function myBookings(token, cursor = "", bookingId) {
+    const userId = await verifyLineIdentity(z.string().min(1).max(8192).parse(token), env.LINE_LOGIN_CHANNEL_ID, request, now());
+    if (bookingId) {
+      const recipient = await recipientRef(id.parse(bookingId)).get();
+      if (!recipient.exists || recipient.data().userId !== userId) throw new ApiError(404, "ไม่พบคำขอของคุณ");
+      const snap = await bookingRef(bookingId).get();
+      if (!snap.exists) throw new ApiError(404, "ไม่พบคำขอของคุณ");
+      return { items: [ownFields(snap)], nextCursor: null };
+    }
+    let query = db.collection("lineBookingRecipients").where("userId", "==", userId).orderBy("consentedAt", "desc").orderBy("__name__", "desc");
+    if (cursor) {
+      const [date, key] = String(cursor).split("~");
+      if (date.length > 30 || !Number.isFinite(Date.parse(date))) throw new ApiError(400, "หน้าข้อมูลไม่ถูกต้อง");
+      query = query.startAfter(new Date(date), id.parse(key));
+    }
+    const page = await query.limit(25).get();
+    const snapshots = await Promise.all(page.docs.map((d) => bookingRef(d.id).get()));
+    const last = page.docs.at(-1);
+    return { items: snapshots.filter((s) => s.exists).map(ownFields), nextCursor: page.docs.length === 25 ? asDate(last.data().consentedAt).toISOString() + "~" + last.id : null };
+  }
+  function ownFields(snap) {
+    const b = snap.data();
+    return { ...publicBooking(snap.id, b), activityName: b.activityName, adminNote: b.adminNote || "", createdAt: asDate(b.createdAt).toISOString() };
+  }
+  return { createBooking, approve, deliver, reminders, myBookings };
 }
 
 export function createLineRouter({
@@ -359,16 +381,13 @@ export function createLineRouter({
   request = fetch,
   now = () => new Date(),
   env = process.env,
+  onBooking = async () => {},
 }) {
   const router = Router();
   router.use((req, res, next) => {
     if (
       env.LINE_ENABLED !== "true" ||
-      !env.LINE_LOGIN_CHANNEL_ID ||
-      !env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ||
-      !env.LINE_ADMIN_EMAILS ||
-      !env.CRON_SECRET ||
-      env.CRON_SECRET.length < 32
+      !env.LINE_LOGIN_CHANNEL_ID
     )
       return res
         .status(503)
@@ -399,9 +418,11 @@ export function createLineRouter({
   router.post(
     "/bookings",
     handle(async (req, res, service) => {
+      const bookingId = await service.createBooking(req.body);
+      await onBooking(bookingId);
       res.json({
         success: true,
-        bookingId: await service.createBooking(req.body),
+        bookingId,
       });
     }),
   );
@@ -416,14 +437,7 @@ export function createLineRouter({
       } catch {
         throw new ApiError(403, "ไม่มีสิทธิ์ผู้ดูแล");
       }
-      const allowed = env.LINE_ADMIN_EMAILS.split(",").map((s) =>
-        s.trim().toLowerCase(),
-      );
-      if (
-        !user.email_verified ||
-        !allowed.includes(user.email?.toLowerCase()) ||
-        !user.uid
-      )
+      if (!adminIdentity(user))
         throw new ApiError(403, "ไม่มีสิทธิ์ผู้ดูแล");
       const bookingId = id.parse(req.params.id),
         note = z
@@ -440,17 +454,30 @@ export function createLineRouter({
     "/reminders",
     handle(async (req, res, service) => {
       if (
+        !env.CRON_SECRET || env.CRON_SECRET.length < 32 ||
         !sameSecret(
           req.headers.authorization || "",
           "Bearer " + env.CRON_SECRET,
         )
       )
         throw new ApiError(401, "Unauthorized");
+      if (!env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN)
+        throw new ApiError(503, "ยังไม่ได้ตั้งค่าการส่งข้อความ LINE");
       const result = await service.reminders();
       res
         .status(result.incomplete ? 503 : 200)
         .json({ success: !result.incomplete, ...result });
     }),
   );
+  router.get("/my-bookings", handle(async (req, res, service) => {
+    const token = /^Bearer (\S+)$/.exec(req.headers.authorization || "")?.[1];
+    if (!token) throw new ApiError(401, "กรุณาเปิดเว็บจาก SMO OA เพื่อยืนยันบัญชี");
+    res.json(await service.myBookings(token, req.query.cursor || ""));
+  }));
+  router.get("/my-bookings/:id", handle(async (req, res, service) => {
+    const token = /^Bearer (\S+)$/.exec(req.headers.authorization || "")?.[1];
+    if (!token) throw new ApiError(401, "กรุณาเปิดเว็บจาก SMO OA เพื่อยืนยันบัญชี");
+    res.json(await service.myBookings(token, "", req.params.id));
+  }));
   return router;
 }

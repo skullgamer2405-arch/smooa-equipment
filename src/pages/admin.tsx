@@ -7,7 +7,7 @@ import {
   TableCell,
   TableCaption,
 } from "../components/ui/table";
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   Plus,
   Printer,
@@ -73,7 +73,6 @@ function Login() {
       <Card>
         <CardContent className="p-6 md:p-8">
           <ShieldCheck className="size-10 text-primary mb-5" />
-          <p className="eyebrow">สำหรับผู้ดูแลระบบ</p>
           <h1>เข้าสู่ระบบจัดการ</h1>
           <p className="muted mt-3 mb-6">
             จัดการคำขอยืมและอุปกรณ์ของสโมสรนักศึกษา
@@ -159,7 +158,7 @@ export function AdminPage() {
     setEditing(item);
   }
 
-  const { user, authReady, equipment, bookings, announce, errors, loading } =
+  const { user, authReady, authError, retry, equipment, bookings, announce, errors, loading, bookingTotals, bookingPage, hasMoreBookings, nextBookings, previousBookings, moreEquipment, hasMoreEquipment, equipmentBusy } =
     useData();
   const [params, setParams] = useSearchParams();
   const tab = ["requests", "equipment", "settings"].includes(
@@ -173,31 +172,39 @@ export function AdminPage() {
     [note, setNote] = useState(""),
     [error, setError] = useState(""),
     [search, setSearch] = useState(""),
-    [filter, setFilter] = useState("pending"),
-    [page, setPage] = useState(1);
+    [equipmentSearch,setEquipmentSearch] = useState("");
+  const filter = params.get("filter") || "pending";
   const pending = useMemo(
     () =>
       bookings
         .filter(
           (b) =>
-            (filter === "all" || b.status === filter) &&
-            [b.fullName, b.studentId, b.equipmentName]
+            api.matchesFilter(b,filter) &&
+            [b.fullName, b.studentId, b.equipmentName, b.assetCode]
               .join(" ")
-              .includes(search),
+              .toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
         )
         .sort(
           (a, b) => +(asDate(b.createdAt) || 0) - +(asDate(a.createdAt) || 0),
         ),
     [bookings, filter, search],
   );
-  const pages = Math.max(1, Math.ceil(pending.length / 10));
-  const currentPage = Math.min(page, pages);
-  const visibleBookings = pending
-    .slice((currentPage - 1) * 10, currentPage * 10)
-    .map((booking) => ({
-      booking,
-      equipment: equipment.find((e) => e.id === booking.equipmentId),
+  const [bookingEquipment, setBookingEquipment] = useState<Record<string,Equipment|null>>({});
+  const [lookupRevision, setLookupRevision] = useState(0), [lookupError, setLookupError] = useState(false);
+  useEffect(()=>{
+    if(!user)return;
+    let active=true;
+    setLookupError(false);
+    const ids=[...new Set(bookings.map(b=>b.equipmentId))].filter(id=>!equipment.some(e=>e.id===id));
+    Promise.all(ids.map(async id=>{
+      try { const value=await api.getEquipment(id); if(active)setBookingEquipment(prev=>({...prev,[id]:value})); }
+      catch { if(active)setLookupError(true); }
     }));
+    return ()=>{active=false;};
+  },[bookings,equipment,user,lookupRevision]);
+  const findEquipment=(id:string)=>equipment.find(e=>e.id===id)||bookingEquipment[id];
+  const currentPage = bookingPage;
+  const visibleBookings = pending.map(booking=>({booking,equipment:findEquipment(booking.equipmentId)}));
   function confirm(a: Action) {
     actionTrigger.current = document.activeElement as HTMLElement;
     setNote("");
@@ -218,7 +225,7 @@ export function AdminPage() {
     }
   }
   function decision(booking: Booking, status: "approved" | "rejected") {
-    const eq = equipment.find((e) => e.id === booking.equipmentId);
+    const eq = findEquipment(booking.equipmentId);
     confirm({
       title:
         status === "approved" ? "ยืนยันอนุมัติคำขอ" : "ยืนยันไม่อนุมัติคำขอ",
@@ -238,27 +245,12 @@ export function AdminPage() {
           announce(
             "อนุมัติแล้ว แต่ LINE ส่งไม่สำเร็จ กรุณาให้ผู้ดูแลตรวจการตั้งค่าแจ้งเตือน",
           );
-        if (booking.applicantEmail) {
-          try {
-            await api.notify(
-              status === "approved"
-                ? "notify-borrower-approved"
-                : "notify-borrower-rejected",
-              {
-                ...booking,
-                equipmentName: eq?.title || booking.equipmentName,
-                adminNote: note,
-              },
-            );
-          } catch {
-            announce("เปลี่ยนสถานะแล้ว แต่การแจ้งเตือนยังไม่สำเร็จ");
-          }
-        }
+
       },
     });
   }
   if (!authReady) return <p role="status">กำลังตรวจสอบการเข้าสู่ระบบ...</p>;
-  if (!user) return <Login />;
+  if (!user) return <>{authError&&<div role="alert" className="mb-5 rounded-lg border bg-white p-5"><p>{authError}</p><div className="mt-3 flex gap-3"><Button variant="outline" onClick={retry}>ลองตรวจอีกครั้ง</Button><Button variant="outline" onClick={()=>void api.logout()}>เปลี่ยนบัญชี</Button></div></div>}<Login/></>;
   return (
     <>
       <PageHeading
@@ -274,37 +266,9 @@ export function AdminPage() {
       />
       <section
         aria-label="สถิติการจัดการ"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6"
       >
-        {[
-          [
-            "คำขอรออนุมัติ",
-            bookings.filter((b) => b.status === "pending").length,
-          ],
-          [
-            "อยู่ระหว่างการยืม",
-            bookings.filter((b) => b.status === "approved").length,
-          ],
-          [
-            "เลยกำหนดคืน",
-            bookings.filter(
-              (b) =>
-                b.status === "approved" &&
-                asDate(b.endDate) &&
-                asDate(b.endDate)! < new Date(),
-            ).length,
-          ],
-        ].map(([label, value]) => (
-          <Card key={label}>
-            <CardContent className="p-5">
-              <p className="muted">{label}</p>
-              <p className="text-[30px] text-primary mt-2">
-                {errors.bookings || loading ? "—" : value}
-                <span className="text-sm muted ml-2">รายการ</span>
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        {[["คำขอรออนุมัติ","pending"],["อยู่ระหว่างการยืม","approved"],["ครบกำหนดวันนี้","due"],["เลยกำหนดคืน","overdue"]].map(([label,key])=><button key={key} className="rounded-lg border bg-white p-5 text-left hover:bg-muted focus-visible:ring-2" onClick={()=>setParams({tab:"requests",filter:key})}><span className="block muted">{label}</span><span className="block text-[30px] text-primary mt-2 tabular-nums">{errors.bookings||loading?"—":bookingTotals[key]??"—"}<span className="text-sm muted ml-2">รายการ</span></span></button>)}
       </section>
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v })}>
         <TabsList className="h-auto w-full flex-wrap justify-start mb-6 bg-transparent gap-2 p-0">
@@ -337,9 +301,9 @@ export function AdminPage() {
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
-                  setPage(1);
+
                 }}
-                placeholder="ค้นหาชื่อ รหัสนักศึกษา หรืออุปกรณ์"
+                placeholder="ค้นหาในหน้านี้: ชื่อ รหัสนักศึกษา หรืออุปกรณ์"
               />
             </label>
             <label>
@@ -348,18 +312,21 @@ export function AdminPage() {
                 className="min-h-11 rounded-md border bg-white px-3 w-full"
                 value={filter}
                 onChange={(e) => {
-                  setFilter(e.target.value);
-                  setPage(1);
+                  setParams({tab:"requests",filter:e.target.value});
+
                 }}
               >
                 <option value="pending">รออนุมัติ</option>
                 <option value="approved">อนุมัติแล้ว</option>
                 <option value="rejected">ไม่อนุมัติ</option>
                 <option value="returned">คืนแล้ว</option>
+                <option value="due">ครบกำหนดวันนี้</option>
+                <option value="overdue">เลยกำหนดคืน</option>
                 <option value="all">ทุกสถานะ</option>
               </select>
             </label>
           </div>
+          {lookupError&&<div role="alert" className="mb-4"><p>โหลดรายละเอียดอุปกรณ์บางรายการไม่สำเร็จ กรุณาลองใหม่ก่อนอนุมัติ</p><Button variant="outline" className="mt-2" onClick={()=>setLookupRevision(v=>v+1)}>ลองโหลดอุปกรณ์อีกครั้ง</Button></div>}
           <DataStatus collection="bookings">
             {pending.length ? (
               <>
@@ -406,7 +373,8 @@ export function AdminPage() {
                           </TableCell>
                           <TableCell className="p-4">
                             <Status value={b.status} />
-                            {b.status === "pending" && (
+                            {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>confirm({title:"ยืนยันรับคืนอุปกรณ์",description:`${b.equipmentName} · ${b.fullName}`,run:async()=>{await api.returnEquipment(b.equipmentId,b.id);announce("รับคืนอุปกรณ์แล้ว");}})}><Undo2 aria-hidden="true"/>รับคืน</Button>}
+                        {b.status === "pending" && (
                               <div className="flex flex-wrap gap-2 mt-3">
                                 <Button
                                   onClick={() => decision(b, "approved")}
@@ -450,6 +418,7 @@ export function AdminPage() {
                         </p>
                         <p>{b.activityName}</p>
                         <p className="text-sm muted">{b.reason}</p>
+                        {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>confirm({title:"ยืนยันรับคืนอุปกรณ์",description:`${b.equipmentName} · ${b.fullName}`,run:async()=>{await api.returnEquipment(b.equipmentId,b.id);announce("รับคืนอุปกรณ์แล้ว");}})}>รับคืน</Button>}
                         {b.status === "pending" && (
                           <div className="flex flex-wrap gap-3 mt-4">
                             <Button
@@ -470,31 +439,7 @@ export function AdminPage() {
                     </Card>
                   ))}
                 </div>
-                <div className="flex justify-between items-center gap-3 mt-5">
-                  <p className="text-sm muted">
-                    หน้า {currentPage} / {pages} · {pending.length} รายการ
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="หน้าก่อนหน้า"
-                      disabled={currentPage === 1}
-                      onClick={() => setPage(currentPage - 1)}
-                    >
-                      <ChevronLeft />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="หน้าถัดไป"
-                      disabled={currentPage === pages}
-                      onClick={() => setPage(currentPage + 1)}
-                    >
-                      <ChevronRight />
-                    </Button>
-                  </div>
-                </div>
+
               </>
             ) : (
               <Empty
@@ -502,6 +447,31 @@ export function AdminPage() {
                 description="คำขอใหม่จะแสดงเมื่อมีนักศึกษาส่งเข้ามา"
               />
             )}
+                <div className="flex justify-between items-center gap-3 mt-5">
+                  <p className="text-sm muted">
+                    หน้า {currentPage} · {pending.length} รายการในชุดนี้
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="หน้าก่อนหน้า"
+                      disabled={currentPage === 1}
+                      onClick={previousBookings}
+                    >
+                      <ChevronLeft />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="หน้าถัดไป"
+                      disabled={!hasMoreBookings}
+                      onClick={nextBookings}
+                    >
+                      <ChevronRight />
+                    </Button>
+                  </div>
+                </div>
           </DataStatus>
         </TabsContent>
         <TabsContent value="equipment">
@@ -515,15 +485,16 @@ export function AdminPage() {
               disabled={!equipment.length}
             >
               <Printer />
-              พิมพ์ QR ทั้งหมด
+              พิมพ์ QR รายการที่โหลด
             </Button>
           </div>
+          <Label htmlFor="admin-equipment-search">ค้นหาอุปกรณ์ที่โหลดแล้ว</Label><Input id="admin-equipment-search" value={equipmentSearch} onChange={e=>setEquipmentSearch(e.target.value)} className="my-3 max-w-xl bg-white" placeholder="ชื่ออุปกรณ์หรือรหัส…"/>
           <DataStatus collection="equipment">
             {!equipment.length ? (
               <Empty />
             ) : (
               <div className="grid gap-3 mb-6">
-                {equipment.map((e) => (
+                {equipment.filter(e=>[e.title,e.assetCode].join(" ").toLocaleLowerCase().includes(equipmentSearch.trim().toLocaleLowerCase())).map((e) => (
                   <div
                     key={e.id}
                     className="flex flex-col gap-4 rounded-lg border bg-white p-4 sm:flex-row sm:items-center"
@@ -587,6 +558,7 @@ export function AdminPage() {
               </div>
             )}
           </DataStatus>
+          {hasMoreEquipment&&<Button variant="outline" className="mb-5" disabled={equipmentBusy} onClick={()=>void moreEquipment()}>โหลดอุปกรณ์เพิ่มเติม</Button>}
           <AdminImport />
         </TabsContent>
         <TabsContent value="settings">
@@ -647,7 +619,12 @@ export function AdminPage() {
 function Settings() {
   const [url, setUrl] = useState(api.webhook()),
     [error, setError] = useState(""),
-    [testing, setTesting] = useState(false);
+    [testing, setTesting] = useState(false),
+    [savedUrl,setSavedUrl] = useState(api.webhook()),
+    [settingsReady,setSettingsReady] = useState(api.demo),
+    [settingsRevision,setSettingsRevision] = useState(0),
+    [queue,setQueue] = useState<{id:string;bookingId?:string;status:string;kind?:string}[]>([]);
+  useEffect(()=>{let active=true;setError("");setSettingsReady(false);api.notificationSettings().then(value=>{if(active){setUrl(value.webhookUrl);setSavedUrl(value.webhookUrl);setSettingsReady(true);}}).catch(()=>{if(active)setError("โหลดการตั้งค่าไม่สำเร็จ กรุณาลองใหม่");});if(!api.demo)api.apiRequest<{notifications:typeof queue}>("/api/admin/notifications",{},true).then(value=>{if(active)setQueue(value.notifications);}).catch(()=>{if(active)setError("โหลดคิวแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่");});return()=>{active=false;};},[settingsRevision]);
   const { announce } = useData();
   return (
     <Card className="max-w-2xl">
@@ -658,14 +635,14 @@ function Settings() {
         </h2>
         <p className="muted mt-3 mb-5">
           ตั้งค่า Google Apps Script Web App สำหรับแจ้งเตือนผู้ดูแลและผู้ยืม
-          การตั้งค่านี้บันทึกเฉพาะเบราว์เซอร์ที่ใช้งาน
+          การตั้งค่าจริงเก็บฝั่งเซิร์ฟเวอร์และใช้ร่วมกันระหว่างผู้ดูแล Secret ตั้งค่าในระบบ deployment เท่านั้น
         </p>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             setError("");
             try {
-              api.saveWebhook(url.trim());
+              await api.saveWebhook(url.trim());setSavedUrl(url.trim());
               announce("บันทึกการตั้งค่าการแจ้งเตือนแล้ว");
             } catch (e) {
               setError((e as Error).message);
@@ -689,33 +666,32 @@ function Settings() {
             </p>
           )}
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button disabled={testing}>บันทึกการตั้งค่า</Button>
+            <Button type="button" variant="outline" disabled={testing} onClick={()=>setSettingsRevision(v=>v+1)}>โหลดการตั้งค่าใหม่</Button>
+            <Button disabled={testing||!settingsReady}>บันทึกการตั้งค่า</Button>
             <Button
               type="button"
               variant="outline"
               disabled={testing}
               onClick={async () => {
                 setError("");
-                if (url.trim() !== api.webhook()) {
+                if (url.trim() !== savedUrl) {
                   setError("กรุณาบันทึกการตั้งค่าก่อนส่งทดสอบ");
                   return;
                 }
                 setTesting(true);
                 try {
-                  const result = await api.notify("notify-admin-booking", {
+                  const result = await api.notify("test", {
                     bookingId: "notification-test",
                     equipmentName: "ทดสอบระบบแจ้งเตือน",
                     fullName: "ผู้ดูแลระบบ",
                     activityName: "ทดสอบการตั้งค่า",
                   });
                   if (!result.success) throw Error("บริการแจ้งเตือนไม่ตอบรับ");
-                  announce(
-                    result.deliveredToSMTP
-                      ? "ส่งอีเมลทดสอบผ่าน SMTP แล้ว"
-                      : result.deliveryUnknown
-                        ? "ส่งคำขอทดสอบแล้ว เบราว์เซอร์ไม่สามารถยืนยันการส่งอีเมลได้"
-                        : "บันทึกการทดสอบแล้ว ยังไม่ได้ส่งอีเมลจริง",
-                  );
+                  announce(result.notification === "accepted"
+                    ? "บริการอีเมลตอบรับแล้ว โปรดตรวจกล่องรับและโฟลเดอร์สแปม"
+                    : result.notification === "needs_review"
+                      ? "ผลการส่งอีเมลไม่ชัดเจน กรุณาตรวจคิวก่อนส่งใหม่"
+                      : "บันทึกการทดสอบแล้ว ยังไม่ได้ส่งอีเมลจริง");
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
@@ -727,6 +703,7 @@ function Settings() {
             </Button>
           </div>
         </form>
+        <section className="mt-6 border-t pt-5"><h3 className="text-lg">คิวการแจ้งเตือน</h3><p className="text-sm muted mt-2">สถานะส่งสำเร็จหมายถึงบริการตอบรับ ยังไม่ยืนยันว่าผู้รับอ่านแล้ว งานที่ต้องตรวจจะไม่ส่งซ้ำอัตโนมัติ</p>{queue.length?<ul className="mt-3 divide-y">{queue.map(item=><li key={item.id} className="py-3 text-sm break-all">{item.bookingId||item.id} · {item.kind||"แจ้งเตือน"} · {({sent:"บริการตอบรับแล้ว",pending:"รอส่ง",sending:"กำลังส่ง",needs_review:"ต้องตรวจผลการส่ง"} as Record<string,string>)[item.status]||item.status}</li>)}</ul>:<p className="text-sm mt-3">ยังไม่มีงานแจ้งเตือนในชุดนี้</p>}</section>
       </CardContent>
     </Card>
   );

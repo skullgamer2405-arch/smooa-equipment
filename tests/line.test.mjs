@@ -7,102 +7,7 @@ import {
   verifyLineIdentity,
 } from "../server/line.mjs";
 
-// Deterministic transactional fixture; never starts an emulator or contacts production.
-function memoryDb() {
-  const rows = new Map();
-  const snapshot = (path) => ({
-    id: path.split("/").at(-1),
-    exists: rows.has(path),
-    data: () => structuredClone(rows.get(path)),
-  });
-  const ref = (path) => ({
-    path,
-    id: path.split("/").at(-1),
-    get: async () => snapshot(path),
-    update: async (value) => {
-      assert(rows.has(path));
-      rows.set(path, { ...rows.get(path), ...structuredClone(value) });
-    },
-  });
-  function query(name, filters = [], order = "", count = Infinity, cursor) {
-    return {
-      doc: (value) => ref(name + "/" + value),
-      where: (...filter) =>
-        query(name, [...filters, filter], order, count, cursor),
-      orderBy: (field) => query(name, filters, field, count, cursor),
-      limit: (limit) => query(name, filters, order, limit, cursor),
-      startAfter: (after) => query(name, filters, order, count, after),
-      async get() {
-        let items = [...rows.keys()]
-          .filter((path) => path.startsWith(name + "/"))
-          .map(snapshot);
-        for (const [key, op, value] of filters)
-          items = items.filter((s) => {
-            const field = s.data()[key];
-            return op === "=="
-              ? field === value
-              : op === "in"
-                ? value.includes(field)
-                : op === ">="
-                  ? field >= value
-                  : field < value;
-          });
-        items.sort((a, b) =>
-          order
-            ? +a.data()[order] - +b.data()[order] || a.id.localeCompare(b.id)
-            : a.id.localeCompare(b.id),
-        );
-        if (cursor)
-          items = items.slice(items.findIndex((s) => s.id === cursor.id) + 1);
-        return { docs: items.slice(0, count) };
-      },
-    };
-  }
-  let lock = Promise.resolve();
-  return {
-    rows,
-    collection: (name) => query(name),
-    async runTransaction(fn) {
-      const previous = lock;
-      let release;
-      lock = new Promise((resolve) => {
-        release = resolve;
-      });
-      await previous;
-      const writes = [];
-      let writing = false;
-      try {
-        const result = await fn({
-          get: async (reference) => {
-            assert(!writing, "read before write");
-            return reference.get();
-          },
-          create: (reference, value) => {
-            writing = true;
-            writes.push(() => {
-              assert(!rows.has(reference.path));
-              rows.set(reference.path, structuredClone(value));
-            });
-          },
-          update: (reference, value) => {
-            writing = true;
-            writes.push(() => {
-              assert(rows.has(reference.path));
-              rows.set(reference.path, {
-                ...rows.get(reference.path),
-                ...structuredClone(value),
-              });
-            });
-          },
-        });
-        for (const write of writes) write();
-        return result;
-      } finally {
-        release();
-      }
-    },
-  };
-}
+import { memoryDb } from "./fixtures/memory-db.mjs";
 const userId = "U" + "1".repeat(32);
 const env = {
   LINE_ENABLED: "true",
@@ -129,7 +34,7 @@ function fixture() {
         aud: env.LINE_LOGIN_CHANNEL_ID,
         iss: "https://access.line.me",
         exp: +time / 1000 + 3600,
-        sub: userId,
+        sub: options.body.get("id_token") === "other-account" ? "U" + "2".repeat(32) : userId,
       });
     }
     assert.equal(url, "https://api.line.me/v2/bot/message/push");
@@ -237,6 +142,18 @@ test("LINE booking validates consent/dates, is idempotent and rejects altered re
   );
   assert.equal(f.db.rows.size, 3);
 });
+test("LINE history only returns bookings owned by the verified LINE subject", async () => {
+  const f = fixture();
+  const mine = await f.service.createBooking(f.body);
+  const theirs = await f.service.createBooking({ ...f.body, idToken: "other-account", requestId: "89b5e4c3-20ff-45a4-9625-466228689c10", fullName: "บัญชีอื่น" });
+  const first = await f.service.myBookings("fixture-id-token");
+  assert.deepEqual(first.items.map(item => item.id), [mine]);
+  assert(!JSON.stringify(first).includes("บัญชีอื่น"));
+  assert(!JSON.stringify(first).includes("other-account"));
+  await assert.rejects(() => f.service.myBookings("fixture-id-token", "", theirs), error => error.status === 404);
+  assert.deepEqual((await f.service.myBookings("other-account")).items.map(item => item.id), [theirs]);
+  await assert.rejects(() => f.service.myBookings("fixture-id-token", "broken~cursor"), error => error.status === 400);
+});
 test("approval commits once and push retries reuse a durable key; concurrent delivery is leased", async () => {
   const f = fixture(),
     key = await f.service.createBooking(f.body);
@@ -301,7 +218,7 @@ test("ambiguous pushes stop before the 24-hour LINE deduplication expiry", async
   assert.equal(f.db.rows.get(job).status, "needs_review");
   assert.equal(f.pushes.length, 1);
 });
-test("HTTP routes require explicit enablement, verified allowlisted admins and cron secret", async () => {
+test("HTTP routes require explicit enablement, verified admin claims and cron secret", async () => {
   const f = fixture();
   const app = express();
   app.use(express.json());
@@ -316,6 +233,7 @@ test("HTTP routes require explicit enablement, verified allowlisted admins and c
         if (token === "allow")
           return {
             uid: "admin",
+            admin: true,
             email: "admin@example.invalid",
             email_verified: true,
           };

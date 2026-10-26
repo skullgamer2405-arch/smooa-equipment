@@ -46,6 +46,9 @@ jobs:
   deploy-firebase:
     name: 🔥 Deploy Firebase Hosting
     needs: validate
+    # This frontend now requires a same-origin API. Keep the existing production
+    # Hosting site intact until that routing is configured and verified.
+    if: vars.SMO_FIREBASE_SAME_ORIGIN_API_READY == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

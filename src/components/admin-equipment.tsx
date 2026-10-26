@@ -18,7 +18,8 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import type { Equipment } from "../lib/types";
-import { saveEquipment, demo } from "../lib/data";
+import { saveEquipment, demo, adminHeaders } from "../lib/data";
+import { prepareImage } from "../lib/image-upload";
 import { safeImage } from "../lib/utils";
 import { useData } from "../context";
 export function EquipmentEditor({
@@ -89,16 +90,17 @@ export function EquipmentEditor({
       setError("ใช้ PNG, JPEG หรือ WebP ไม่เกิน 10 MB");
       return;
     }
-    if (demo) {
-      setDraft((x) => ({ ...x, imageUrl: URL.createObjectURL(file) }));
-      return;
-    }
     setBusy(true);
     setError("");
     try {
+      const png = await prepareImage(file);
+      if (demo) {
+        setDraft((x) => ({ ...x, imageUrl: URL.createObjectURL(png) }));
+        return;
+      }
       const body = new FormData();
-      body.append("image", file);
-      const r = await fetch("/api/upload-image", { method: "POST", body });
+      body.append("image", png, "equipment.png");
+      const r = await fetch("/api/upload-image", { method: "POST", body, headers: await adminHeaders(), signal: AbortSignal.timeout(20000) });
       if (!r.ok)
         throw Error(
           "อัปโหลดไม่สำเร็จ ตรวจว่าเซิร์ฟเวอร์ API พร้อมใช้งาน หรือใช้ URL รูปภาพแทน",
@@ -206,7 +208,7 @@ export function EquipmentEditor({
           </div>
           <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3">
             <Upload className="size-4" />
-            อัปโหลดภาพต้นฉบับ
+            อัปโหลดภาพอุปกรณ์
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"

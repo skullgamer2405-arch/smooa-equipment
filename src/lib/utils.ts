@@ -34,11 +34,10 @@ export function dateLabel(value: unknown) {
   return date ? dateFormatter.format(date) : "ไม่ระบุวันที่";
 }
 export function inputDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 export function parseInputDate(value: string) {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(value + "T00:00:00+07:00");
 }
 export function safeImage(value?: string) {
   if (!value) return "/equipment-placeholder.svg";

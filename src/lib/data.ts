@@ -1,20 +1,22 @@
 import {
   addDoc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  startAfter,
   collection,
   deleteDoc,
   doc,
-  getDocs,
   onSnapshot,
   query,
-  runTransaction,
   serverTimestamp,
   Timestamp,
   updateDoc,
   where,
-  writeBatch,
 } from "firebase/firestore";
 import {
-  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
@@ -22,11 +24,13 @@ import { fixtureState } from "./fixtures";
 import type {
   Booking,
   CollectionName,
+  WatchOptions,
+  MyBooking,
   Equipment,
   CalendarEntry,
 } from "./types";
-import { asDate } from "./utils";
-import { lineEnabled, approveWithLine } from "./line";
+import { asDate, inputDate } from "./utils";
+import { lineSession } from "./line";
 export const demo = import.meta.env.VITE_DEMO_MODE === "true";
 export const demoAccount = {
   email: "admin@example.invalid",
@@ -64,59 +68,119 @@ function changed() {
   persistDemo("smo-demo-state", JSON.stringify(state));
   listeners.forEach((f) => f());
 }
-export function watch(
-  name: CollectionName,
-  next: (rows: Row[]) => void,
-  error: (message: string) => void,
-) {
-  let stopped = false,
-    unsub: undefined | (() => void);
+export type PageMeta = { cursor: unknown; hasMore: boolean };
+export function watch(name: CollectionName, next: (rows: Row[], meta: PageMeta) => void, error: (message: string) => void, options: WatchOptions = {}) {
+  let stopped = false, unsub: undefined | (() => void);
+  const size = options.size || 25;
   if (demo) {
-    const emit = () => next([...state[name]]);
-    listeners.add(emit);
-    emit();
-    return () => {
-      listeners.delete(emit);
+    const emit = () => {
+      let rows: Row[] = [...state[name]];
+      if (name === "bookings") rows = (rows as Booking[]).filter(b => matchesFilter(b, options.filter || "all")).sort((a,b) => +(asDate(b.createdAt) || 0) - +(asDate(a.createdAt) || 0) || a.id.localeCompare(b.id));
+      const at = options.cursor ? rows.findIndex(r => r.id === options.cursor) + 1 : 0;
+      const page = rows.slice(at, at + size);
+      next(page, { cursor: page.at(-1)?.id, hasMore: rows.length > at + size });
     };
+    listeners.add(emit); emit();
+    return () => { listeners.delete(emit); };
   }
-  import("./firebase")
-    .then(({ db }) => {
-      if (!stopped)
-        unsub = onSnapshot(
-          collection(db, name),
-          (s) => next(s.docs.map((d) => ({ ...d.data(), id: d.id }) as Row)),
-          () => error("เชื่อมต่อข้อมูลไม่สำเร็จ กรุณาลองใหม่"),
-        );
-    })
-    .catch(() => error("เริ่มระบบข้อมูลไม่สำเร็จ"));
-  return () => {
-    stopped = true;
-    unsub?.();
-  };
+  import("./firebase").then(({ db }) => {
+    if (stopped) return;
+    const constraints = [];
+    if (name === "bookings" && options.filter && options.filter !== "all") {
+      const due = ["due","overdue"].includes(options.filter);
+      constraints.push(where("status", "==", due ? "approved" : options.filter));
+      if (due) {
+        const today = inputDate(new Date());
+        constraints.push(where("endDate", options.filter === "due" ? ">=" : "<", Timestamp.fromDate(new Date(today + "T00:00:00+07:00"))));
+        if (options.filter === "due") constraints.push(where("endDate", "<", Timestamp.fromDate(new Date(+new Date(today + "T00:00:00+07:00") + 86400000))));
+        constraints.push(orderBy("endDate"));
+      } else constraints.push(orderBy("createdAt", "desc"));
+    } else constraints.push(orderBy(name === "bookings" ? "createdAt" : "__name__", name === "bookings" ? "desc" : "asc"));
+    if (options.cursor) constraints.push(startAfter(options.cursor));
+    if (name === "calendarEntries" && options.from && options.to) {
+      constraints.unshift(where("date", ">=", Timestamp.fromDate(new Date(options.from + "T00:00:00+07:00"))), where("date", "<=", Timestamp.fromDate(new Date(options.to + "T23:59:59+07:00"))));
+      constraints.unshift(orderBy("date"));
+    }
+    unsub = onSnapshot(query(collection(db, name), ...constraints, limit(size + 1)), snap => {
+      const docs = snap.docs.slice(0, size);
+      next(docs.map(d => ({ ...d.data(), id: d.id }) as Row), { cursor: docs.at(-1), hasMore: snap.docs.length > size });
+    }, () => error("โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่ หรือตรวจสิทธิ์และ indexes"));
+  }).catch(() => error("เริ่มระบบข้อมูลไม่สำเร็จ กรุณาลองใหม่"));
+  return () => { stopped = true; unsub?.(); };
 }
-export function watchAuth(
-  next: (user: { email: string | null } | null) => void,
-) {
+export function matchesFilter(b: Booking, filter: string) {
+  if (["due", "overdue"].includes(filter)) {
+    const end = asDate(b.endDate);
+    return b.status === "approved" && end && (filter === "due" ? inputDate(end) === inputDate(new Date()) : inputDate(end) < inputDate(new Date()));
+  }
+  return filter === "all" || b.status === filter;
+}
+export function watchAuth(next: (user: { email: string | null } | null) => void, error: (message: string) => void = () => {}) {
   if (demo) {
     const emit = () => next(demoAdmin ? { email: demoAccount.email } : null);
-    listeners.add(emit);
-    emit();
-    return () => {
-      listeners.delete(emit);
-    };
+    listeners.add(emit); emit(); return () => { listeners.delete(emit); };
   }
-  let stop = false,
-    unsub: undefined | (() => void);
+  let stopped = false, version = 0, unsub: undefined | (() => void);
   import("./firebase").then(({ auth }) => {
-    if (!stop)
-      unsub = onAuthStateChanged(auth, (u) =>
-        next(u ? { email: u.email } : null),
-      );
-  });
-  return () => {
-    stop = true;
-    unsub?.();
-  };
+    if (stopped) return;
+    unsub = onIdTokenChanged(auth, async user => {
+      const current = ++version;
+      if (!user) { error(""); next(null); return; }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([user.getIdTokenResult(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Error("AUTH_TIMEOUT")), 10000); })]);
+        if (stopped || current !== version) return;
+        if (result.claims.admin !== true || result.claims.email_verified !== true) { next(null); error("บัญชีนี้ยังไม่ได้รับสิทธิ์ผู้ดูแล กรุณาติดต่อผู้ดูแลระบบหรือเปลี่ยนบัญชี"); return; }
+        error(""); next({ email: user.email });
+      } catch { if (!stopped && current === version) { next(null); error("ตรวจการเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"); } }
+      finally { clearTimeout(timer); }
+    }, () => { if (!stopped) { next(null); error("ตรวจการเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"); } });
+  }).catch(() => { if (!stopped) { next(null); error("โหลดระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"); } });
+  return () => { stopped = true; version++; unsub?.(); };
+}
+export async function adminHeaders() {
+  const { auth } = await import("./firebase");
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw Error("กรุณาเข้าสู่ระบบผู้ดูแลใหม่");
+  return { Authorization: "Bearer " + token };
+}
+export async function apiRequest<T = Record<string, unknown>>(url: string, options: RequestInit = {}, admin = false): Promise<T> {
+  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(admin ? await adminHeaders() : {}), ...options.headers }, signal: options.signal || AbortSignal.timeout(15000) });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw Error(body.message || "บริการไม่พร้อม กรุณาลองใหม่");
+  }
+  return response.json();
+}
+export async function getEquipment(id: string): Promise<Equipment | null> {
+  if (demo) return state.equipment.find(e => e.id === id) || null;
+  const { db } = await import("./firebase");
+  const snap = await getDoc(doc(db, "equipment", id));
+  return snap.exists() ? { ...snap.data(), id: snap.id } as Equipment : null;
+}
+export async function equipmentPage(cursor?: unknown) {
+  if (demo) {
+    const start = cursor ? state.equipment.findIndex(e => e.id === cursor) + 1 : 0;
+    const rows = state.equipment.slice(start, start + 25);
+    return { rows, cursor: rows.at(-1)?.id as unknown, hasMore: state.equipment.length > start + 25 };
+  }
+  const { db } = await import("./firebase");
+  const constraints = [orderBy("__name__"), ...(cursor ? [startAfter(cursor)] : []), limit(26)];
+  const snap = await getDocs(query(collection(db, "equipment"), ...constraints));
+  const docs = snap.docs.slice(0, 25);
+  return { rows: docs.map(d => ({ ...d.data(), id: d.id }) as Equipment), cursor: docs.at(-1) as unknown, hasMore: snap.docs.length > 25 };
+}
+export async function equipmentSummary(): Promise<Record<string, number>> {
+  if (demo) return { all: state.equipment.length, available: state.equipment.filter(e => e.status === "available").length, unavailable: state.equipment.filter(e => e.status === "unavailable").length, maintenance: state.equipment.filter(e => e.status === "maintenance").length };
+  return apiRequest("/api/public/equipment-summary");
+}
+export async function bookingSummary(): Promise<Record<string, number>> {
+  if (demo) return Object.fromEntries(["pending", "approved", "due", "overdue"].map(key => [key, state.bookings.filter(b => matchesFilter(b, key)).length]));
+  return apiRequest("/api/admin/booking-summary", {}, true);
+}
+export async function publicCalendar(from: string, to: string, equipmentId = "", cursor = ""): Promise<{ items: import("./types").PublicEvent[]; nextCursor: string | null }> {
+  if (demo) return { items: state.bookings.filter(b => b.status === "approved" && (!equipmentId || b.equipmentId === equipmentId)).map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), status: b.status })).filter(b => b.endDay >= from && b.startDay <= to), nextCursor: null };
+  return apiRequest("/api/public/calendar?" + new URLSearchParams({ from, to, equipmentId, after: cursor }));
 }
 export async function login(email: string, password: string) {
   if (demo) {
@@ -140,25 +204,16 @@ export async function logout() {
   const { auth } = await import("./firebase");
   await signOut(auth);
 }
-export async function createBooking(data: Omit<Booking, "id" | "createdAt">) {
+export async function createBooking(data: Omit<Booking, "id" | "createdAt">, requestId: string, lineLinked = false) {
   if (demo) {
+    const previous = state.bookings.find(b => b.requestId === requestId);
+    if (previous) return previous.id;
     const id = crypto.randomUUID();
-    state.bookings.unshift({
-      ...data,
-      id,
-      createdAt: new Date().toISOString(),
-    });
-    changed();
-    return id;
+    state.bookings.unshift({ ...data, id, requestId, lineLinked, createdAt: new Date().toISOString() });
+    changed(); return id;
   }
-  const { db } = await import("./firebase");
-  const ref = await addDoc(collection(db, "bookings"), {
-    ...data,
-    startDate: Timestamp.fromDate(asDate(data.startDate)!),
-    endDate: Timestamp.fromDate(asDate(data.endDate)!),
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+  const result = await apiRequest<{ bookingId: string }>("/api/bookings", { method: "POST", body: JSON.stringify({ ...data, requestId, terms: true, startDate: inputDate(asDate(data.startDate)!), endDate: inputDate(asDate(data.endDate)!) }) });
+  return result.bookingId;
 }
 export async function saveEquipment(data: Omit<Equipment, "id">, id?: string) {
   if (demo) {
@@ -216,61 +271,24 @@ export async function decideBooking(
     changed();
     return;
   }
-  if (action === "approved" && lineEnabled) {
-    return approveWithLine(id, note);
-  }
-  const { db } = await import("./firebase");
-  await runTransaction(db, async (tx) => {
-    const br = doc(db, "bookings", id),
-      snap = await tx.get(br);
-    if (!snap.exists() || snap.data().status !== "pending")
-      throw Error("คำขอนี้ถูกดำเนินการแล้ว");
-    const b = snap.data(),
-      er = doc(db, "equipment", b.equipmentId),
-      eq = await tx.get(er);
-    if (
-      action === "approved" &&
-      (!eq.exists() || eq.data().status !== "available")
-    )
-      throw Error("อุปกรณ์ไม่พร้อมให้ยืม");
-    tx.update(br, {
-      status: action,
-      adminNote: note,
-      [action === "approved" ? "approvedAt" : "rejectedAt"]: serverTimestamp(),
-    });
-    if (action === "approved")
-      tx.update(er, { status: "unavailable", returnDate: b.endDate });
-  });
+  return apiRequest<{ notification?: string }>(`/api/admin/bookings/${encodeURIComponent(id)}/decision`, { method: "POST", body: JSON.stringify({ action, note }) }, true);
 }
-export async function returnEquipment(id: string) {
+export async function returnEquipment(id: string, bookingId?: string) {
   if (demo) {
-    const e = state.equipment.find((x) => x.id === id);
-    if (e) e.status = "available";
-    state.bookings.forEach((b) => {
-      if (b.equipmentId === id && b.status === "approved")
-        b.status = "returned";
-    });
-    changed();
-    return;
+    const selected = state.bookings.filter(b => b.equipmentId === id && b.status === "approved" && (!bookingId || b.id === bookingId));
+    selected.forEach(b => { b.status = "returned"; });
+    if (!state.bookings.some(b => b.equipmentId === id && b.status === "approved")) { const item = state.equipment.find(e => e.id === id); if (item) item.status = "available"; }
+    changed(); return;
   }
-  const { db } = await import("./firebase");
-  const docs = await getDocs(
-    query(
-      collection(db, "bookings"),
-      where("equipmentId", "==", id),
-      where("status", "==", "approved"),
-    ),
-  );
-  const batch = writeBatch(db);
-  batch.update(doc(db, "equipment", id), {
-    status: "available",
-    returnDate: null,
-  });
-  docs.forEach((d) =>
-    batch.update(d.ref, { status: "returned", returnedAt: serverTimestamp() }),
-  );
-  await batch.commit();
+  await apiRequest(`/api/admin/equipment/${encodeURIComponent(id)}/return`, { method: "POST", body: JSON.stringify({ bookingId }) }, true);
 }
+export async function myBookings(cursor = ""): Promise<{ items: MyBooking[]; nextCursor: string | null }> {
+  if (demo) return { items: state.bookings.filter(b => b.lineLinked || b.id === "booking-sample").map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, status: b.status, startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), activityName: b.activityName, adminNote: b.adminNote || "", createdAt: asDate(b.createdAt)!.toISOString() })), nextCursor: null };
+  const session = await lineSession();
+  if (!session) throw Error("กรุณาเปิดเว็บจาก Rich Menu ของ SMO OA เพื่อยืนยันบัญชี");
+  return apiRequest("/api/line/my-bookings?cursor=" + encodeURIComponent(cursor), { headers: { Authorization: "Bearer " + session.idToken } });
+}
+
 export async function addCalendar(data: Omit<CalendarEntry, "id">) {
   if (demo) {
     state.calendarEntries.push({ ...data, id: crypto.randomUUID() });
@@ -284,33 +302,17 @@ export async function addCalendar(data: Omit<CalendarEntry, "id">) {
     createdAt: serverTimestamp(),
   });
 }
-export function webhook() {
-  return localStorage.getItem("smo_email_webhook_url") || "";
+export function webhook() { return readDemo("smo_email_webhook_url") || ""; }
+export async function notificationSettings(): Promise<{ webhookUrl: string; smtpConfigured: boolean; webhookReady: boolean }> {
+  if (demo) return { webhookUrl: webhook(), smtpConfigured: false, webhookReady: false };
+  return apiRequest("/api/admin/notification-settings", {}, true);
 }
-export function saveWebhook(url: string) {
-  if (
-    url &&
-    !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(
-      url,
-    )
-  )
-    throw Error("กรุณาใช้ URL Web App ของ Google Apps Script แบบ HTTPS");
-  url
-    ? localStorage.setItem("smo_email_webhook_url", url)
-    : localStorage.removeItem("smo_email_webhook_url");
+export async function saveWebhook(url: string) {
+  if (url && !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) throw Error("กรุณาใช้ URL Web App ของ Google Apps Script แบบ HTTPS");
+  if (demo) { persistDemo("smo_email_webhook_url", url || null); return; }
+  await apiRequest("/api/admin/notification-settings", { method: "PUT", body: JSON.stringify({ webhookUrl: url }) }, true);
 }
 export async function notify(action: string, data: Record<string, unknown>) {
-  if (demo) return { success: true, deliveredToSMTP: false };
-  const url = webhook();
-  const r = await fetch(url || "/api/" + action, {
-    method: "POST",
-    headers: {
-      "Content-Type": url ? "text/plain;charset=utf-8" : "application/json",
-    },
-    body: JSON.stringify(url ? { action, ...data } : data),
-    ...(url ? { mode: "no-cors" as RequestMode } : {}),
-  });
-  if (url) return { success: true, deliveryUnknown: true };
-  if (!r.ok) throw Error("บันทึกคำขอแล้ว แต่ส่งการแจ้งเตือนไม่สำเร็จ");
-  return r.json();
+  if (demo) return { success: true, deliveredToSMTP: false, notification: "not_configured" as const };
+  return apiRequest<{ success: boolean; deliveredToSMTP?: boolean; notification?: "accepted" | "needs_review" | "not_configured" | "already_queued" }>(action === "test" ? "/api/admin/notifications/test" : "/api/" + action, { method: "POST", body: JSON.stringify({ bookingId: data.bookingId || data.id }) }, true);
 }

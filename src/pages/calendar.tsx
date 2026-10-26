@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { calendarWindow } from "../lib/calendar";
+import type { PublicEvent } from "../lib/types";
+import { validDay } from "../../shared/booking-schema.js";
 import { th } from "date-fns/locale";
 import { Plus, CalendarDays, Clock } from "lucide-react";
 import { useData } from "../context";
 import { asDate, dateLabel, inputDate, parseInputDate } from "../lib/utils";
-import { addCalendar } from "../lib/data";
+import { addCalendar, publicCalendar } from "../lib/data";
 import { Calendar } from "../components/ui/calendar";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -25,38 +29,27 @@ import {
 } from "../components/ui/dialog";
 import { PageHeading, DataStatus, Empty } from "../components/shared";
 export function CalendarPage() {
-  const { bookings, calendarEntries, equipment, user, announce } = useData();
-  const [selected, setSelected] = useState<Date | undefined>(new Date()),
-    [open, setOpen] = useState(false),
+  const { calendarEntries, equipment, user, announce, moreEquipment, hasMoreEquipment } = useData();
+  const [params,setParams] = useSearchParams();
+  const rawDay = params.get("date") || "";
+  const selected = parseInputDate(validDay(rawDay) ? rawDay : inputDate(new Date()));
+  const equipmentId = params.get("equipmentId") || "";
+  const [publicEvents,setPublicEvents] = useState<PublicEvent[]>([]),[eventsError,setEventsError] = useState(""),[eventsBusy,setEventsBusy] = useState(true),[nextCursor,setNextCursor] = useState<string|null>(null),[revision,setRevision] = useState(0);
+  function setSelected(date:Date|undefined) { if(!date)return;const next=new URLSearchParams(params);next.set("date",inputDate(date));setParams(next); }
+  function setEquipmentFilter(id:string) {const next=new URLSearchParams(params);id?next.set("equipmentId",id):next.delete("equipmentId");setParams(next);}
+  const windowDays = calendarWindow(inputDate(selected));
+  useEffect(()=>{let active=true;setEventsBusy(true);setEventsError("");setPublicEvents([]);publicCalendar(windowDays.from,windowDays.to,equipmentId).then(result=>{if(active){setPublicEvents(result.items);setNextCursor(result.nextCursor);}}).catch(()=>{if(active)setEventsError("โหลดปฏิทินไม่สำเร็จ กรุณาลองใหม่");}).finally(()=>{if(active)setEventsBusy(false);});return()=>{active=false;};},[windowDays.from,windowDays.to,equipmentId,revision]);
+  const [open, setOpen] = useState(false),
     [pending, setPending] = useState(false),
     [error, setError] = useState(""),
     [eqId, setEqId] = useState("none");
   const day = inputDate(selected || new Date());
   const events = [
-    ...bookings
-      .filter((b) => {
-        const a = asDate(b.startDate),
-          z = asDate(b.endDate);
-        return (
-          b.status === "approved" &&
-          a &&
-          z &&
-          day >= inputDate(a) &&
-          day <= inputDate(z)
-        );
-      })
-      .map((b) => ({
-        id: b.id,
-        title: b.activityName,
-        equipment:
-          equipment.find((e) => e.id === b.equipmentId)?.title ||
-          b.equipmentName,
-        time: "ตลอดช่วงวันยืม",
-      })),
+    ...publicEvents.filter(event=>event.startDay<=day && event.endDay>=day).map(event=>({id:event.id,title:"มีการยืมอุปกรณ์",equipment:event.equipmentName,time:"ตลอดช่วงวันยืม"})),
     ...calendarEntries
       .filter((e) => {
         const d = asDate(e.date);
-        return d && inputDate(d) === day;
+        return d && inputDate(d) === day && (!equipmentId || e.equipmentId === equipmentId);
       })
       .map((e) => ({
         id: e.id,
@@ -171,6 +164,10 @@ export function CalendarPage() {
           )
         }
       />
+      <div className="mb-5 flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1 max-w-md"><Label htmlFor="calendar-equipment">ดูปฏิทินของอุปกรณ์</Label><select id="calendar-equipment" className="mt-2 min-h-11 w-full rounded-md border bg-white px-3" value={equipmentId} onChange={e=>setEquipmentFilter(e.target.value)}><option value="">ทุกอุปกรณ์</option>{equipmentId&&!equipment.some(e=>e.id===equipmentId)&&<option value={equipmentId}>อุปกรณ์ที่เลือก</option>}{equipment.map(item=><option key={item.id} value={item.id}>{item.title} · {item.assetCode}</option>)}</select></div>{hasMoreEquipment&&<Button variant="outline" onClick={()=>void moreEquipment()}>โหลดชื่ออุปกรณ์เพิ่ม</Button>}{equipmentId&&<Button asChild><Link to={"/booking.html?"+new URLSearchParams({id:equipmentId,startDate:day,endDate:day})}>ขอยืมอุปกรณ์นี้</Link></Button>}</div>
+      <p className="text-sm muted mb-5">วันที่ขีดเส้นใต้มีรายการอนุมัติ การไม่พบรายการยังไม่ยืนยันว่าอุปกรณ์พร้อม ผู้ดูแลจะตรวจอีกครั้งก่อนอนุมัติ</p>
+      {eventsBusy&&<p role="status" className="mb-4">กำลังโหลดรายการปฏิทิน…</p>}
+      {eventsError&&<div role="alert" className="mb-5 rounded border bg-white p-4"><p>{eventsError}</p><Button variant="outline" className="mt-3" onClick={()=>setRevision(v=>v+1)}>ลองใหม่</Button></div>}
       <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
         <Card className="self-start">
           <CardContent className="p-3">
@@ -190,6 +187,12 @@ export function CalendarPage() {
                 mode="single"
                 locale={th}
                 selected={selected}
+                timeZone="Asia/Bangkok"
+                month={selected}
+                onMonthChange={date=>setSelected(date)}
+                modifiers={{ booked:date=>publicEvents.some(event=>event.startDay<=inputDate(date)&&event.endDay>=inputDate(date)) }}
+                modifiersStyles={{booked:{textDecoration:"underline",textUnderlineOffset:"5px"}}}
+                labels={{labelDayButton:(date,modifiers)=>date.toLocaleDateString("th-TH",{dateStyle:"full",timeZone:"Asia/Bangkok"})+(modifiers.booked?" มีรายการอนุมัติ":"")}}
                 onSelect={(d) => d && setSelected(d)}
                 className="w-full"
               />
@@ -208,12 +211,11 @@ export function CalendarPage() {
             <h2 className="text-xl">{dateLabel(selected)}</h2>
             <span className="text-sm muted">{events.length} รายการ</span>
           </div>
-          <DataStatus collection="bookings">
             <DataStatus collection="calendarEntries">
               {events.length ? (
                 <div className="grid gap-4">
                   {events.map((e) => (
-                    <Card key={e.id} className="border-l-4 border-l-[#c49c45]">
+                    <Card key={e.id}>
                       <CardContent>
                         <p className="text-sm muted mb-2 flex items-center gap-2">
                           <CalendarDays className="size-4" />
@@ -229,14 +231,14 @@ export function CalendarPage() {
                     </Card>
                   ))}
                 </div>
-              ) : (
+              ) : !eventsBusy && !eventsError ? (
                 <Empty
                   title="ยังไม่มีรายการในวันนี้"
                   description="เลือกวันอื่นเพื่อดูการจองและกิจกรรม"
                 />
-              )}
+              ) : null}
             </DataStatus>
-          </DataStatus>
+          {nextCursor&&<Button className="mt-4" variant="outline" disabled={eventsBusy} onClick={async()=>{setEventsBusy(true);try{const result=await publicCalendar(windowDays.from,windowDays.to,equipmentId,nextCursor);setPublicEvents(prev=>[...prev,...result.items]);setNextCursor(result.nextCursor);}catch{setEventsError("โหลดรายการเพิ่มไม่สำเร็จ กรุณาลองใหม่");}finally{setEventsBusy(false);}}}>โหลดรายการในช่วงนี้เพิ่มเติม</Button>}
           <p className="muted text-sm mt-5">
             ปฏิทินแสดงเฉพาะคำขอที่อนุมัติแล้ว
             วันว่างในปฏิทินยังไม่ใช่การรับรองว่าอุปกรณ์พร้อมให้ยืม

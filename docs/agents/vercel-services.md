@@ -34,11 +34,9 @@ Use `vercel dev` for the complete services topology. Securely log in/link the Ve
 
 The existing API uses Firebase Admin credentials and optional SMTP settings described in `.env.example`. Vercel project environment settings must supply those securely for live use; linking the Vercel plugin does not populate application credentials. `.vercelignore` excludes local secrets, tools, generated outputs, uploads and legacy reference copies.
 
-## Storage decision still required
+## Storage and private data update
 
-The old upload code writes into the repository, which cannot be used as a writable directory in Vercel functions. Vercel now uses `/tmp` and preserves the `/uploads/*` response/route contract. These files are **temporary and per instance**, so an upload may disappear or be unavailable in another function instance. The in-memory notification log has the same per-instance limitation it already had.
-
-Temporary disk storage applies only when the real API is enabled; demo Preview blocks uploads and file reads entirely. Before real uploads are enabled, choose persistent shared object storage (existing Firebase Storage is a candidate), then update both upload and download paths. That migration has not been guessed or implemented. Existing backend authorization findings in `optimization-review.md` remain relevant before public API rollout.
+The current API stores validated PNG equipment images in persistent Firebase Storage through the authenticated API. Browser uploads must include a verified admin ID token. The old `/uploads/*` route remains read-only for existing assets; new uploads return Firebase Storage download URLs. Booking, email queue and LINE recipient state are Firestore-backed. See `ux-privacy-rollout.md` before switching on production APIs. The historical validation and Preview deployment notes below describe the earlier revision, not validation of the current hardening changes.
 
 ## Validation
 
