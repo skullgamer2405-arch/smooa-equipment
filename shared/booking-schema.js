@@ -29,7 +29,7 @@ export const bookingSchema = z
     faculty: required("คณะ"),
     department: required("สาขา"),
     affiliation: z.string().max(200),
-    applicantEmail: z.string().email("กรุณากรอกอีเมลให้ถูกต้อง"),
+    applicantEmail: z.string().max(254, "อีเมลยาวเกินกำหนด").email("กรุณากรอกอีเมลให้ถูกต้อง"),
     applicantPhone: z.string().max(30),
     activityName: required("ชื่อกิจกรรม", 300),
     reason: required("วัตถุประสงค์", 1000),

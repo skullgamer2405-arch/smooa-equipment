@@ -21,6 +21,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { fixtureState } from "./fixtures";
+import { validWebhook } from "../../shared/notification-config.js";
 import type {
   Booking,
   CollectionName,
@@ -303,12 +304,13 @@ export async function addCalendar(data: Omit<CalendarEntry, "id">) {
   });
 }
 export function webhook() { return readDemo("smo_email_webhook_url") || ""; }
-export async function notificationSettings(): Promise<{ webhookUrl: string; smtpConfigured: boolean; webhookReady: boolean }> {
-  if (demo) return { webhookUrl: webhook(), smtpConfigured: false, webhookReady: false };
+export type NotificationSettings = { webhookUrl: string; smtpConfigured: boolean; webhookReady: boolean; adminEmail: string; provider: "smtp" | "apps_script" | "none"; adminUrl: string; ready: boolean; issues: string[] };
+export async function notificationSettings(): Promise<NotificationSettings> {
+  if (demo) return { webhookUrl: webhook(), smtpConfigured: false, webhookReady: false, adminEmail: "", provider: "none", adminUrl: "", ready: false, issues: [] };
   return apiRequest("/api/admin/notification-settings", {}, true);
 }
 export async function saveWebhook(url: string) {
-  if (url && !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) throw Error("กรุณาใช้ URL Web App ของ Google Apps Script แบบ HTTPS");
+  if (!validWebhook(url)) throw Error("กรุณาใช้ URL Web App ของ Google Apps Script แบบ HTTPS");
   if (demo) { persistDemo("smo_email_webhook_url", url || null); return; }
   await apiRequest("/api/admin/notification-settings", { method: "PUT", body: JSON.stringify({ webhookUrl: url }) }, true);
 }

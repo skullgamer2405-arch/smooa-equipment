@@ -620,11 +620,13 @@ function Settings() {
   const [url, setUrl] = useState(api.webhook()),
     [error, setError] = useState(""),
     [testing, setTesting] = useState(false),
+    [saving, setSaving] = useState(false),
+    [delivery, setDelivery] = useState<api.NotificationSettings | null>(null),
     [savedUrl,setSavedUrl] = useState(api.webhook()),
     [settingsReady,setSettingsReady] = useState(api.demo),
     [settingsRevision,setSettingsRevision] = useState(0),
     [queue,setQueue] = useState<{id:string;bookingId?:string;status:string;kind?:string}[]>([]);
-  useEffect(()=>{let active=true;setError("");setSettingsReady(false);api.notificationSettings().then(value=>{if(active){setUrl(value.webhookUrl);setSavedUrl(value.webhookUrl);setSettingsReady(true);}}).catch(()=>{if(active)setError("โหลดการตั้งค่าไม่สำเร็จ กรุณาลองใหม่");});if(!api.demo)api.apiRequest<{notifications:typeof queue}>("/api/admin/notifications",{},true).then(value=>{if(active)setQueue(value.notifications);}).catch(()=>{if(active)setError("โหลดคิวแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่");});return()=>{active=false;};},[settingsRevision]);
+  useEffect(()=>{let active=true;setError("");setDelivery(null);setSettingsReady(false);api.notificationSettings().then(value=>{if(active){setUrl(value.webhookUrl);setSavedUrl(value.webhookUrl);setDelivery(value);setSettingsReady(true);}}).catch(()=>{if(active)setError("โหลดการตั้งค่าไม่สำเร็จ กรุณาลองใหม่");});if(!api.demo)api.apiRequest<{notifications:typeof queue}>("/api/admin/notifications",{},true).then(value=>{if(active)setQueue(value.notifications);}).catch(()=>{if(active)setError("โหลดคิวแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่");});return()=>{active=false;};},[settingsRevision]);
   const { announce } = useData();
   return (
     <Card className="max-w-2xl">
@@ -634,19 +636,31 @@ function Settings() {
           อีเมลแจ้งเตือน
         </h2>
         <p className="muted mt-3 mb-5">
-          ตั้งค่า Google Apps Script Web App สำหรับแจ้งเตือนผู้ดูแลและผู้ยืม
-          การตั้งค่าจริงเก็บฝั่งเซิร์ฟเวอร์และใช้ร่วมกันระหว่างผู้ดูแล Secret ตั้งค่าในระบบ deployment เท่านั้น
+          เมื่อมีคำขอยืมใหม่ ระบบส่งอีเมลให้ผู้ดูแลอัตโนมัติ ทั้งการจองผ่านเว็บและ LINE
+          เมื่ออนุมัติหรือปฏิเสธ ระบบส่งผลให้อีเมลผู้ยืม
         </p>
+        <section aria-label="สถานะการเชื่อมต่ออีเมล" className="rounded-lg border p-4 mb-5 space-y-2 break-words">
+          <h3>{api.demo ? "โหมดตัวอย่าง — ไม่ส่งอีเมลจริง" : !delivery ? "กำลังตรวจการตั้งค่าอีเมล" : delivery.ready ? "ตั้งค่าครบแล้ว — ส่งทดสอบเพื่อยืนยันการเชื่อมต่อ" : "ยังตั้งค่าอีเมลไม่ครบ"}</h3>
+          {!api.demo && delivery && <>
+            <p>ผู้รับคำขอใหม่: {delivery.adminEmail || "ยังไม่ได้ระบุ"}</p>
+            <p>ช่องทางส่ง: {({ smtp: "SMTP", apps_script: "Google Apps Script", none: "ยังไม่ได้เชื่อมต่อ" })[delivery.provider]}</p>
+            {delivery.issues.length > 0 && <ul className="list-disc pl-5 text-sm space-y-2">{delivery.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
+            {!delivery.adminUrl && <p className="text-sm muted">ตั้งค่า PUBLIC_APP_URL เป็น URL เว็บจริงแบบ HTTPS เพื่อเพิ่มลิงก์เปิดหน้าแอดมินในอีเมล</p>}
+          </>}
+          <p className="text-sm muted">เชื่อม Gmail ได้ที่ Vercel → Settings → Environment Variables โดยใช้ App Password เก็บรหัสลับฝั่งเซิร์ฟเวอร์เท่านั้น แล้ว Redeploy ก่อนทดสอบ</p>
+        </section>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
             setError("");
+            setSaving(true);
             try {
               await api.saveWebhook(url.trim());setSavedUrl(url.trim());
+              setDelivery(await api.notificationSettings());
               announce("บันทึกการตั้งค่าการแจ้งเตือนแล้ว");
             } catch (e) {
               setError((e as Error).message);
-            }
+            } finally { setSaving(false); }
           }}
         >
           <Label htmlFor="webhook-url">URL ของ Google Apps Script</Label>
@@ -657,8 +671,7 @@ function Settings() {
             placeholder="https://script.google.com/macros/s/.../exec"
           />
           <p className="text-sm muted mt-2">
-            เว้นว่างเพื่อใช้เซิร์ฟเวอร์ API ที่ตั้งค่าไว้
-            การส่งอีเมลจริงขึ้นอยู่กับบริการที่เปิดใช้งาน
+            ถ้าใช้ Gmail ผ่าน SMTP ให้เว้นว่าง หากระบุ URL ระบบจะใช้ Apps Script แทน SMTP
           </p>
           {error && (
             <p role="alert" className="text-destructive mt-3">
@@ -666,12 +679,12 @@ function Settings() {
             </p>
           )}
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button type="button" variant="outline" disabled={testing} onClick={()=>setSettingsRevision(v=>v+1)}>โหลดการตั้งค่าใหม่</Button>
-            <Button disabled={testing||!settingsReady}>บันทึกการตั้งค่า</Button>
+            <Button type="button" variant="outline" disabled={testing||saving} onClick={()=>setSettingsRevision(v=>v+1)}>โหลดการตั้งค่าใหม่</Button>
+            <Button disabled={testing||saving||!settingsReady}>{saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}</Button>
             <Button
               type="button"
               variant="outline"
-              disabled={testing}
+              disabled={testing||saving||!settingsReady}
               onClick={async () => {
                 setError("");
                 if (url.trim() !== savedUrl) {

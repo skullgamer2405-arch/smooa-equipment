@@ -12,23 +12,29 @@ import { createNotifications } from "./server/notifications.mjs";
 import { storeImage } from "./server/images.mjs";
 import { bangkokDay } from "./shared/booking-schema.js";
 import { adminGuard, handle, apiError, ApiError, documentId } from "./server/http.mjs";
+import securityHeaders from "./shared/security-headers.json" with { type: "json" };
 
 function firebase(env) {
   if (getApps().length) return getApps()[0];
   try {
     const json = env.FIREBASE_SERVICE_ACCOUNT_JSON || (env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 ? Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_JSON_B64, "base64").toString("utf8") : "");
-    if (json) return initializeApp({ credential: cert(JSON.parse(json)), storageBucket: env.FIREBASE_STORAGE_BUCKET });
+    if (json) {
+      const account = JSON.parse(json);
+      if (env.VITE_FIREBASE_PROJECT_ID && account.project_id !== env.VITE_FIREBASE_PROJECT_ID.trim()) throw Error("PROJECT_MISMATCH");
+      return initializeApp({ credential: cert(account), storageBucket: env.FIREBASE_STORAGE_BUCKET });
+    }
     if (env.GOOGLE_APPLICATION_CREDENTIALS || env.FIREBASE_USE_ADC === "true") return initializeApp({ storageBucket: env.FIREBASE_STORAGE_BUCKET });
   } catch { /* fail closed, without exposing credential diagnostics */ }
   throw new ApiError(503, "ยังไม่ได้ตั้งค่าบริการ Firebase ฝั่งเซิร์ฟเวอร์");
 }
 function mailTransport(env) {
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
-  return nodemailer.createTransport({ host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), secure: env.SMTP_SECURE === "true" || env.SMTP_PORT === "465", auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }, connectionTimeout: 10000, socketTimeout: 15000 });
+  return nodemailer.createTransport({ host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), secure: env.SMTP_SECURE === "true" || env.SMTP_PORT === "465", requireTLS: true, auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }, connectionTimeout: 10000, socketTimeout: 15000 });
 }
 export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => { const app = firebase(env); const { getAuth } = await import("firebase-admin/auth"); return getAuth(app).verifyIdToken(token, true); }, bucket = async () => { const app = firebase(env); const { getStorage } = await import("firebase-admin/storage"); return getStorage(app).bucket(env.FIREBASE_STORAGE_BUCKET); }, transport, request = fetch, now = () => new Date() } = {}) {
   const app = express();
   app.disable("x-powered-by");
+  app.use((_req, res, next) => { res.set(securityHeaders); next(); });
   const root = path.dirname(fileURLToPath(import.meta.url));
   const demo = env.VERCEL_ENV === "preview" || env.SMO_DEMO_MODE === "true" || env.VITE_DEMO_MODE === "true";
   if (demo) app.use(["/api", "/uploads"], (_req, res) => res.status(403).json({ success: false, code: "DEMO_MODE", message: "โหมดตัวอย่างใช้ข้อมูลจำลองและปิด API จริง" }));
@@ -39,7 +45,7 @@ export function createApp({ env = process.env, getDb = () => { firebase(env); re
   const line = () => createLineService({ db: getDb(), env, request, now });
   const notifications = () => createNotifications({ db: getDb(), env, request, now, transport: transport === undefined ? mailTransport(env) : transport });
   const notice = async (bookingId, kind) => { try { return await notifications().dispatch(bookingId, kind); } catch { return { success: true, deliveredToSMTP: false, notification: "needs_review" }; } };
-  app.use("/api/line", createLineRouter({ getDb, verifyAdmin, env, request, now, onBooking: (id) => notice(id, "pending") }));
+  app.use("/api/line", createLineRouter({ getDb, verifyAdmin, env, request, now, onBooking: (id) => notice(id, "pending"), onApproval: (id) => notice(id, "approved") }));
   app.post("/api/bookings", handle(async (req, res) => {
     const bookingId = await bookings().create(req.body, req.ip || "unknown");
     res.json({ success: true, bookingId, ...(await notice(bookingId, "pending")) });

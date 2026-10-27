@@ -35,9 +35,8 @@ service cloud.firestore {
 
     // ============================================
     // Bookings Collection
-    // - Create: anyone (students submit borrow requests)
-    //   แต่ต้องกรอก fields ครบและ status ต้องเป็น pending
-    // - Read/Update/Delete: authenticated admin only
+    // - Read: verified admin only
+    // - All writes: validated server API only
     // ============================================
     match /bookings/{bookingId} {
       allow read: if isAdmin();

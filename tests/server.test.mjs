@@ -77,6 +77,8 @@ import { memoryDb } from "./fixtures/memory-db.mjs";
 import { createBookingService } from "../server/bookings.mjs";
 import { canonicalImage } from "../server/images.mjs";
 import { createNotifications, escapeHtml } from "../server/notifications.mjs";
+import nodemailer from "nodemailer";
+import { randomUUID } from "node:crypto";
 
 const payload = { requestId:"c8ed05f3-76b1-4f51-83bf-1581bbb82591",equipmentId:"fixture",fullName:"<b>ผู้ทดสอบ</b>",studentId:"TEST-01",faculty:"คณะทดสอบ",department:"สาขาทดสอบ",affiliation:"",applicantEmail:"borrower@example.invalid",applicantPhone:"",activityName:"กิจกรรม",reason:"ทดสอบ",startDate:"2035-06-10",endDate:"2035-06-11",terms:true };
 function fixture() {
@@ -155,6 +157,100 @@ test("decision emails cannot be redirected or fabricated from request body",asyn
  assert.equal(f.mails.length,1);assert.equal(f.mails[0].to,payload.applicantEmail);
 });
 
+test("admin email readiness is private, actionable and excludes credentials", async () => {
+ const db=memoryDb(), env={ADMIN_NOTIFICATION_EMAIL:" admin@example.invalid ",SMTP_PASS:"fixture-secret",APPS_SCRIPT_SHARED_SECRET:"x".repeat(32),PUBLIC_APP_URL:"https://equipment.example.invalid/"};
+ const service=createNotifications({db,env,transport:{sendMail:async()=>{}}});
+ const status=await service.settings();
+ assert.equal(status.adminEmail,"admin@example.invalid");assert.equal(status.ready,true);assert.equal(status.provider,"smtp");
+ assert.equal(status.adminUrl,"https://equipment.example.invalid/admin.html");
+ assert(!JSON.stringify(status).includes(env.SMTP_PASS));assert(!JSON.stringify(status).includes(env.APPS_SCRIPT_SHARED_SECRET));
+ const f=fixture();
+ await serve(f.app,async request=>{
+  for(const token of [undefined,"ordinary"]){
+   assert.equal((await request("/api/admin/notification-settings",token?{headers:{Authorization:"Bearer "+token}}:{})).status,token?403:401);
+   assert.equal((await request("/api/admin/notifications/test",json({},token))).status,token?403:401);
+  }
+ });
+ assert.equal(f.mails.length,0);
+});
+
+test("LINE booking sends the admin one email after saving, including on request retry",async()=>{
+ const f=fixture(), now=()=>new Date("2035-06-10T02:00:00Z");
+ const env={...f.env,LINE_ENABLED:"true",LINE_LOGIN_CHANNEL_ID:"fixture-channel"};
+ const app=createApp({env,getDb:()=>f.db,now,transport:{sendMail:async mail=>f.mails.push(mail)},request:async(url)=>{
+  assert.equal(url,"https://api.line.me/oauth2/v2.1/verify");
+  return Response.json({aud:env.LINE_LOGIN_CHANNEL_ID,iss:"https://access.line.me",exp:+now()/1000+3600,sub:"U"+"1".repeat(32)});
+ }});
+ await serve(app,async request=>{
+  const body={...payload,idToken:"fixture-token",lineConsent:true,ADMIN_NOTIFICATION_EMAIL:"attacker@example.invalid"};
+  for(let i=0;i<2;i++){
+   const response=await request("/api/line/bookings",json(body));assert.equal(response.status,200);
+   const value=await response.json();assert.equal(f.db.rows.get("bookings/"+value.bookingId).status,"pending");
+  }
+ });
+ assert.equal(f.mails.length,1);assert.equal(f.mails[0].to,f.env.ADMIN_NOTIFICATION_EMAIL);
+ assert(f.mails[0].text.includes("2035-06-10 – 2035-06-11"));
+});
+
+test("incomplete email setup reports specific fixes and never sends a test",async()=>{
+ const db=memoryDb();let sends=0;
+ const service=createNotifications({db,env:{},transport:null});
+ assert.equal((await service.settings()).issues.length,2);
+ await assert.rejects(()=>service.test(),e=>e.status===503&&e.message.includes("ADMIN_NOTIFICATION_EMAIL")&&e.message.includes("SMTP_HOST"));
+ for(const recipient of ["bad", "first@example.invalid,second@example.invalid", "admin@example.invalid\r\nBcc: victim@example.invalid"]){
+  const invalid=createNotifications({db,env:{ADMIN_NOTIFICATION_EMAIL:recipient},transport:{sendMail:async()=>sends++}});
+  await assert.rejects(()=>invalid.test(),e=>e.status===503);
+ }
+ db.rows.set("settings/notifications",{webhookUrl:"https://script.google.com/macros/s/fixture/exec"});
+ const webhook=createNotifications({db,env:{ADMIN_NOTIFICATION_EMAIL:"admin@example.invalid"},transport:{sendMail:async()=>sends++}});
+ assert.equal((await webhook.settings()).provider,"apps_script");
+ await assert.rejects(()=>webhook.test(),e=>e.status===503&&e.message.includes("APPS_SCRIPT_SHARED_SECRET"));
+ assert.equal(sends,0);
+});
+
+test("admin test email uses server recipient, readable text and a safe login link",async()=>{
+ const f=fixture();
+ await serve(f.app,async request=>{
+  const response=await request("/api/admin/notifications/test",json({to:"attacker@example.invalid",adminUrl:"javascript:alert(1)"},"admin"));
+  assert.equal(response.status,200);assert.equal((await response.json()).notification,"accepted");
+ });
+ assert.equal(f.mails.length,1);assert.equal(f.mails[0].to,"admin@example.invalid");
+ assert(f.mails[0].text.includes("https://equipment.example.invalid/admin.html"));
+ assert(f.mails[0].html.includes('href="https://equipment.example.invalid/admin.html"'));
+ for(const url of ["javascript:alert(1)","http://equipment.example.invalid","https://user:password@equipment.example.invalid"]){
+  assert.equal((await createNotifications({db:f.db,env:{PUBLIC_APP_URL:url}}).settings()).adminUrl,"");
+ }
+});
+
+test("SMTP recipient refusal is recorded for review instead of reported accepted",async()=>{
+ const f=fixture(),key=await createBookingService({db:f.db}).create(payload);
+ const notifications=createNotifications({db:f.db,env:f.env,transport:{sendMail:async()=>({accepted:[],rejected:[f.env.ADMIN_NOTIFICATION_EMAIL]})}});
+ assert.equal((await notifications.dispatch(key,"pending")).notification,"needs_review");
+ assert.equal(f.db.rows.get("emailNotifications/"+key+"_pending").status,"needs_review");
+});
+
+test("LINE approval alias retains admin guards and sends stored borrower email",async()=>{
+ const f=fixture();Object.assign(f.env,{LINE_ENABLED:"true",LINE_LOGIN_CHANNEL_ID:"fixture-channel"});
+ const id=await createBookingService({db:f.db}).create(payload);
+ await serve(f.app,async request=>{
+  const route="/api/line/bookings/"+id+"/approve";
+  for(const token of [undefined,"ordinary","unverified"]){
+   assert.equal((await request(route,json({note:"fixture"},token))).status,token?403:401);
+  }
+  assert.equal((await request(route,json({note:"fixture",applicantEmail:"attacker@example.invalid"},"admin"))).status,200);
+ });
+ assert.equal(f.mails.length,1);assert.equal(f.mails[0].to,payload.applicantEmail);
+});
+
+test("Apps Script environment default is usable and a saved empty setting disables it",async()=>{
+ const f=fixture(),id=await createBookingService({db:f.db}).create(payload);const requests=[];
+ const service=createNotifications({db:f.db,env:{...f.env,APPS_SCRIPT_WEBHOOK_URL:"https://script.google.com/macros/s/fixture/exec",APPS_SCRIPT_SHARED_SECRET:"x".repeat(32)},transport:null,request:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return Response.json({success:true});}});
+ assert.equal((await service.settings()).ready,true);
+ assert.equal((await service.dispatch(id,"pending")).notification,"accepted");
+ assert.equal(requests.length,1);assert.equal(JSON.parse(requests[0].body.payload).to,f.env.ADMIN_NOTIFICATION_EMAIL);
+ await service.configure("");assert.equal((await service.settings()).webhookUrl,"");assert.equal((await service.settings()).ready,false);
+});
+
 test("ambiguous email delivery is recorded for review and not blindly resent",async()=>{
  const f=fixture(),key=await createBookingService({db:f.db}).create(payload);let attempts=0;
  const notifications=createNotifications({db:f.db,env:f.env,transport:{sendMail:async()=>{attempts++;throw Error("lost response");}}});
@@ -186,6 +282,39 @@ test("images are decoded and re-encoded as PNG, stored through persistent storag
   const body=await response.json();assert(body.imageUrl.startsWith("https://firebasestorage.googleapis.com/"));
  });
  assert.equal(f.images.length,1);assert.match(f.images[0].name,/^equipment\/[a-f0-9-]+\.png$/);assert.equal(f.images[0].options.metadata.contentType,"image/png");
+});
+
+test("PNG structure is validated before decode, including repeated and truncated headers",()=>{
+ const one=PNG.sync.write({width:1,height:1,data:Buffer.from([0,0,0,255])});
+ const wide=PNG.sync.write({width:4097,height:1,data:Buffer.alloc(4097*4)});
+ const duplicate=Buffer.concat([wide.subarray(0,8),one.subarray(8,33),wide.subarray(8)]);
+ const interlaced=Buffer.from(one);interlaced[28]=1;
+ const malformed=Buffer.from(one);malformed.writeUInt32BE(0xffffffff,8);
+ for(const bytes of [duplicate,interlaced,malformed,one.subarray(0,one.length-1),Buffer.concat([one,Buffer.from("tail")])]){
+  assert.throws(()=>canonicalImage(bytes),error=>error.status===400);
+ }
+ assert.equal(PNG.sync.read(canonicalImage(one)).width,1);
+});
+
+test("SMTP requires encrypted transport and never opts out of certificate verification",async()=>{
+ const original=nodemailer.createTransport;let config;
+ nodemailer.createTransport=value=>{config=value;return {sendMail:async()=>({accepted:["admin@example.invalid"]})};};
+ try{
+  const db=memoryDb();const app=createApp({env:{SMTP_HOST:"smtp.example.invalid",SMTP_PORT:"587",SMTP_USER:"sender@example.invalid",SMTP_PASS:"fixture",ADMIN_NOTIFICATION_EMAIL:"admin@example.invalid"},getDb:()=>db,verifyAdmin:async()=>({uid:"admin",admin:true,email_verified:true})});
+  await serve(app,async request=>assert.equal((await request("/api/admin/notifications/test",json({},"admin"))).status,200));
+  assert.equal(config.requireTLS,true);assert.equal(config.secure,false);assert.notEqual(config.tls?.rejectUnauthorized,false);
+ }finally{nodemailer.createTransport=original;}
+});
+
+test("web submissions consume a principal quota, preserve retry and reset next minute",async()=>{
+ const f=fixture();let time=new Date("2035-06-10T02:00:00Z");
+ const service=createBookingService({db:f.db,now:()=>time});
+ for(let i=0;i<30;i++)await service.create({...payload,requestId:randomUUID()},"visitor-a");
+ const retry={...payload,requestId:randomUUID()};
+ await assert.rejects(()=>service.create(retry,"visitor-a"),e=>e.status===429);
+ await service.create(retry,"visitor-b");await service.create(retry,"visitor-b");
+ assert.equal([...f.db.rows.keys()].filter(k=>k.startsWith("bookings/")).length,31);
+ time=new Date(+time+60000);await service.create({...payload,requestId:randomUUID()},"visitor-a");
 });
 
 test("calendar range is bounded and projection pagination preserves all records",async()=>{

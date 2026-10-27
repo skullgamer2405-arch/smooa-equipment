@@ -3,6 +3,7 @@ import { z } from "zod";
 import { bookingSchema, validDay } from "../shared/booking-schema.js";
 import { publicBooking } from "../shared/calendar.js";
 import { ApiError, documentId } from "./http.mjs";
+import { submissionLimit } from "./submission-limit.mjs";
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 export function createBookingService({ db, now = () => new Date() }) {
@@ -19,15 +20,13 @@ export function createBookingService({ db, now = () => new Date() }) {
         if (previous.data()?.fingerprint !== fingerprint) throw new ApiError(409, "คำขอซ้ำมีข้อมูลต่างกัน กรุณาเริ่มคำขอใหม่");
         return;
       }
-      const quota = db.collection("submissionLimits").doc(digest(principal + ":" + Math.floor(+now() / 60000)));
-      const rate = await tx.get(quota);
-      if ((rate.data()?.count || 0) >= 30) throw new ApiError(429, "ส่งคำขอถี่เกินไป กรุณารอสักครู่");
+      const quota = await submissionLimit(tx, db, "web:" + principal, now());
       const item = await tx.get(db.collection("equipment").doc(equipmentId));
       if (!item.exists || item.data().status !== "available") throw new ApiError(409, "อุปกรณ์ไม่พร้อมให้ยืม กรุณาเลือกใหม่");
       const equipment = item.data();
       tx.create(ref, { ...fields, equipmentId, equipmentName: z.string().min(1).max(200).parse(equipment.title), assetCode: z.string().min(1).max(50).parse(equipment.assetCode), startDate: new Date(fields.startDate + "T00:00:00+07:00"), endDate: new Date(fields.endDate + "T00:00:00+07:00"), status: "pending", createdAt: now() });
       tx.create(receipt, { fingerprint });
-      tx.set(quota, { count: (rate.data()?.count || 0) + 1, expiresAt: new Date(+now() + 3600000) });
+      tx.set(quota.ref, quota.value);
     });
     return bookingId;
   }

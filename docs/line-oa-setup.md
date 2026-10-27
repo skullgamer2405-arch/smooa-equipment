@@ -1,5 +1,7 @@
 # เชื่อมเว็บยืมอุปกรณ์กับ LINE OA
 
+สำหรับเว็บทางการบน Vercel ให้ทำตาม [คู่มือ Production](production-setup.md) ก่อน รวม `VITE_FIREBASE_*`, อีเมล และการตรวจ `npm run release:check` ค่า LIFF ต้องเป็นของโดเมนถาวรและ build ใหม่หลังเปลี่ยน
+
 > ขั้นตอนเปิดใช้งานจริงและการย้ายข้อมูลล่าสุดอยู่ที่ [ux-privacy-rollout.md](agents/ux-privacy-rollout.md) เอกสารส่วนล่างบางหัวข้ออธิบาย implementation ก่อนการปรับสิทธิ์และปฏิทินสาธารณะ
 
 LINE OA ที่เจ้าของระบุคือ **@474ezowf** ลิงก์เพิ่มเพื่อน: [เปิด SMO OA](https://line.me/R/ti/p/@474ezowf) ตั้งเป็นค่าเริ่มต้นใน `shared/line-oa.js` แล้ว และเปลี่ยนได้ด้วย `VITE_LINE_OA_URL`

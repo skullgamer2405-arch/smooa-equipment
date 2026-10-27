@@ -16,3 +16,14 @@ public/uploads/
 .env*
 !.env.example
 !.env.demo
+
+# Private operator credentials; public Firebase web config belongs in VITE_* env.
+*.pem
+*.key
+*service-account*.json
+credentials*.json
+*-firebase-adminsdk-*.json
+firestore-debug.log
+storage-debug.log
+firebase-debug.log
+ui-debug.log

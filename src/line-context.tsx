@@ -155,7 +155,7 @@ export function LineProvider({ children }: { children: ReactNode }) {
           </DialogDescription>
           <ul className="list-disc pl-5 text-sm space-y-2">
             <li>ใช้ชื่อโปรไฟล์และตัวระบุบัญชี LINE เพื่อผูกกับคำขอยืม</li>
-            <li>แจ้งเตือนก่อนคืน 1 วัน และวันครบกำหนด เวลา 09:00 น. เวลาไทย</li>
+            <li>แจ้งเตือนก่อนคืน 1 วัน และวันครบกำหนด ช่วง 09:00–09:59 น. เวลาไทย</li>
             <li>รับเฉพาะข่าวสารคำขอยืม ไม่มีข้อความโฆษณา</li>
           </ul>
           {demo && (

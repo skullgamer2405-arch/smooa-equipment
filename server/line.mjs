@@ -4,6 +4,7 @@ import { z } from "zod";
 import { bookingSchema, bangkokDay } from "../shared/booking-schema.js";
 import { ApiError, adminIdentity } from "./http.mjs";
 import { publicBooking } from "../shared/calendar.js";
+import { submissionLimit } from "./submission-limit.mjs";
 const id = z.string().regex(/^[\p{L}\p{N}_-]{1,150}$/u);
 const requestSchema = z.object({
   idToken: z.string().min(1).max(8192),
@@ -100,6 +101,7 @@ export function createLineService({
           throw new ApiError(409, "คำขอซ้ำมีข้อมูลต่างกัน กรุณาเริ่มคำขอใหม่");
         return;
       }
+      const quota = await submissionLimit(tx, db, "line:" + userId, now());
       const equipment = await tx.get(
         db.collection("equipment").doc(equipmentId),
       );
@@ -124,6 +126,7 @@ export function createLineService({
         enabled: true,
         approved: false,
       });
+      tx.set(quota.ref, quota.value);
     });
     return bookingId;
   }
@@ -382,6 +385,7 @@ export function createLineRouter({
   now = () => new Date(),
   env = process.env,
   onBooking = async () => {},
+  onApproval = async () => {},
 }) {
   const router = Router();
   router.use((req, res, next) => {
@@ -444,9 +448,11 @@ export function createLineRouter({
           .string()
           .max(1000)
           .parse(req.body.note ?? "");
+      const notification = await service.approve(bookingId, note, user.uid);
+      await onApproval(bookingId);
       res.json({
         success: true,
-        notification: await service.approve(bookingId, note, user.uid),
+        notification,
       });
     }),
   );

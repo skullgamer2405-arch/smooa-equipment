@@ -5,7 +5,7 @@
       "root": ".",
       "framework": "vite",
       "installCommand": "npm ci",
-      "buildCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ]; then VITE_DEMO_MODE=true npm run build -- --mode demo; else npm run build; fi",
+      "buildCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ]; then VITE_DEMO_MODE=true npm run build -- --mode demo; else npm run release:check -- --frontend && npm run build; fi",
       "devCommand": "npm run dev:web -- --host 127.0.0.1",
       "outputDirectory": "dist",
       "rewrites": [
@@ -25,7 +25,7 @@
       "runtime": "node",
       "entrypoint": "server.js",
       "installCommand": "npm ci",
-      "buildCommand": "node --check server.js",
+      "buildCommand": "node --check server.js && if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run release:check; fi",
       "functions": {
         "server.js": {
           "maxDuration": 60
@@ -57,6 +57,33 @@
     {
       "path": "/api/line/reminders",
       "schedule": "0 2 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://static.line-scdn.net https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.line.me https://*.line-scdn.net https://*.line-apps.com; frame-src https://*.firebaseapp.com https://access.line.me; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
     }
   ]
 }

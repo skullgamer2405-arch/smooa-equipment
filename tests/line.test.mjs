@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
+import { randomUUID } from "node:crypto";
 import {
   createLineService,
   createLineRouter,
@@ -140,7 +141,7 @@ test("LINE booking validates consent/dates, is idempotent and rejects altered re
     () => f.service.createBooking({ ...f.body, fullName: "changed" }),
     (e) => e.status === 409,
   );
-  assert.equal(f.db.rows.size, 3);
+  assert.equal(f.db.rows.size, 4); // Equipment, booking, recipient and submission budget.
 });
 test("LINE history only returns bookings owned by the verified LINE subject", async () => {
   const f = fixture();
@@ -358,4 +359,15 @@ test("only documented duplicate acceptance counts as sent; other 4xx require rev
     );
     assert.equal(approvalCalls.length, 1);
   }
+});
+
+test("LINE submissions use verified-subject quota without charging duplicate retries",async()=>{
+ const f=fixture();
+ for(let i=0;i<30;i++)await f.service.createBooking({...f.body,requestId:randomUUID()});
+ await assert.rejects(()=>f.service.createBooking(f.body),e=>e.status===429);
+ const other={...f.body,idToken:"other-account"};
+ const key=await f.service.createBooking(other);
+ assert.equal(await f.service.createBooking(other),key);
+ assert.equal([...f.db.rows.keys()].filter(k=>k.startsWith("bookings/")).length,31);
+ f.setTime('2035-06-10T02:01:00Z');await f.service.createBooking(f.body);
 });

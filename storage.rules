@@ -3,14 +3,14 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Equipment images - public read, admin write
+    // Equipment images - public read, validated server write
     match /equipment/{allPaths=**} {
       allow read: if true;
       // Images are decoded, re-encoded and stored by the authenticated server API.
       allow write: if false;
     }
 
-    // Documents - public read, admin write
+    // Documents - verified admin read, server write
     match /documents/{allPaths=**} {
       allow read: if request.auth != null && request.auth.token.admin == true
         && request.auth.token.email_verified == true;

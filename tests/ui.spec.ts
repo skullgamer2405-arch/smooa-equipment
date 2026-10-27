@@ -629,6 +629,8 @@ test("notification settings validate URL and demo test never sends mail", async 
 }) => {
   await login(page);
   await page.goto("/admin.html?tab=settings");
+  await expect(page.getByRole("region", { name: "สถานะการเชื่อมต่ออีเมล" })).toContainText("โหมดตัวอย่าง — ไม่ส่งอีเมลจริง");
+  await expect(page.getByText("เมื่อมีคำขอยืมใหม่", { exact: false })).toBeVisible();
   await page
     .getByLabel("URL ของ Google Apps Script")
     .fill("javascript:alert(1)");
