@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { config } from "dotenv";
+import { cloudinaryConfig } from "../server/images.mjs";
 import { firebaseConfig } from "../shared/firebase-config.js";
 import { validEmail as email, validWebhook } from "../shared/notification-config.js";
 
@@ -13,12 +14,13 @@ export function releaseIssues(env, frontend = false) {
   let client;
   try { client = firebaseConfig(env); }
   catch {
-    for (const name of ["API_KEY", "AUTH_DOMAIN", "PROJECT_ID", "STORAGE_BUCKET", "APP_ID"]) check("VITE_FIREBASE_" + name, Boolean(env["VITE_FIREBASE_" + name]?.trim()));
+    for (const name of ["API_KEY", "AUTH_DOMAIN", "PROJECT_ID", "APP_ID"]) check("VITE_FIREBASE_" + name, Boolean(env["VITE_FIREBASE_" + name]?.trim()));
   }
   check("Live build: disable demo flags", env.VITE_DEMO_MODE !== "true" && env.SMO_DEMO_MODE !== "true" && env.VERCEL_ENV !== "preview");
   check("VITE_LINE_LIFF_ID", /^\d+-[\w-]+$/.test(env.VITE_LINE_LIFF_ID || ""));
-  for (const name of Object.keys(env)) if (/^VITE_.*(SECRET|TOKEN|PASSWORD|SMTP_PASS|SERVICE_ACCOUNT|PRIVATE_KEY)/.test(name)) check("Remove browser-exposed secret: " + name, false);
+  for (const name of Object.keys(env)) if (/^VITE_CLOUDINARY_/.test(name) || /^VITE_.*(SECRET|TOKEN|PASSWORD|SMTP_PASS|SERVICE_ACCOUNT|PRIVATE_KEY)/.test(name)) check("Remove browser-exposed secret: " + name, false);
   if (frontend) return issues;
+  try { cloudinaryConfig(env); } catch { check("CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET", false); }
   check("PUBLIC_APP_URL (HTTPS, no credentials)", https(env.PUBLIC_APP_URL));
   check("LINE_ENABLED=true", env.LINE_ENABLED === "true");
   check("LINE_LOGIN_CHANNEL_ID", /^\d+$/.test(env.LINE_LOGIN_CHANNEL_ID || ""));
@@ -37,7 +39,6 @@ export function releaseIssues(env, frontend = false) {
   try { account = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 || "", "base64").toString("utf8")); } catch { /* Never print the parser error or credential contents. */ }
   check("FIREBASE_SERVICE_ACCOUNT_JSON (or _B64)", Boolean(account?.project_id && account?.client_email && account?.private_key));
   check("Firebase server/client project matches", Boolean(client && account?.project_id === client.projectId));
-  check("Firebase server/client bucket matches", Boolean(client && env.FIREBASE_STORAGE_BUCKET === client.storageBucket));
   return issues;
 }
 

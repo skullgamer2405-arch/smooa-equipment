@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, ImageIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -43,6 +43,17 @@ export function EquipmentEditor({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [warning, setWarning] = useState("");
+  const [imageStage, setImageStage] = useState<"" | "preparing" | "uploading">("");
+  const actionLock = useRef(false);
+  const previewUrl = useRef("");
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    };
+  }, []);
   const { announce } = useData();
   function text(key: "title" | "assetCode" | "description" | "imageUrl") {
     return {
@@ -54,7 +65,8 @@ export function EquipmentEditor({
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (actionLock.current) return;
+    actionLock.current = true;
     setBusy(true);
     setError("");
     try {
@@ -73,52 +85,60 @@ export function EquipmentEditor({
         },
         existing?.id,
       );
+      // Saved demo records keep their blob URL for the lifetime of this page.
+      if (demo && draft.imageUrl === previewUrl.current) previewUrl.current = "";
+      if (!mounted.current) return;
       announce(existing ? "บันทึกการแก้ไขแล้ว" : "เพิ่มอุปกรณ์แล้ว");
       onClose();
     } catch (e) {
-      setError((e as Error).message);
+      if (mounted.current) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      actionLock.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
   async function upload(file?: File) {
-    if (!file) return;
-    if (
-      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-      file.size > 10 * 1024 * 1024
-    ) {
-      setError("ใช้ PNG, JPEG หรือ WebP ไม่เกิน 10 MB");
-      return;
-    }
+    if (!file || actionLock.current) return;
+    actionLock.current = true;
+    setImageStage("preparing");
     setBusy(true);
     setError("");
     try {
       const png = await prepareImage(file);
+      if (!mounted.current) return;
       if (demo) {
-        setDraft((x) => ({ ...x, imageUrl: URL.createObjectURL(png) }));
+        const url = URL.createObjectURL(png);
+        if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+        previewUrl.current = url;
+        setDraft((x) => ({ ...x, imageUrl: url }));
         return;
       }
+      setImageStage("uploading");
       const body = new FormData();
       body.append("image", png, "equipment.png");
-      const r = await fetch("/api/upload-image", { method: "POST", body, headers: await adminHeaders(), signal: AbortSignal.timeout(20000) });
+      const headers = await adminHeaders();
+      if (!mounted.current) return;
+      const r = await fetch("/api/upload-image", { method: "POST", body, headers, signal: AbortSignal.timeout(20000) });
       if (!r.ok)
         throw Error(
           "อัปโหลดไม่สำเร็จ ตรวจว่าเซิร์ฟเวอร์ API พร้อมใช้งาน หรือใช้ URL รูปภาพแทน",
         );
       const d = await r.json();
-      if (!d.success) throw Error("อัปโหลดไม่สำเร็จ");
-      setDraft((x) => ({ ...x, imageUrl: d.imageUrl }));
+      if (!d.success || typeof d.imageUrl !== "string" || !d.imageUrl) throw Error("อัปโหลดไม่สำเร็จ");
+      if (mounted.current) setDraft((x) => ({ ...x, imageUrl: d.imageUrl }));
     } catch (e) {
-      setError((e as Error).message);
+      if (mounted.current) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      actionLock.current = false;
+      if (mounted.current) setImageStage("");
+      if (mounted.current) setBusy(false);
     }
   }
   return (
     <Dialog
       open={!!item}
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && !actionLock.current) onClose();
       }}
     >
       <DialogContent
@@ -202,6 +222,7 @@ export function EquipmentEditor({
             <Label htmlFor="eq-image">URL รูปภาพ</Label>
             <Input
               id="eq-image"
+              disabled={busy}
               placeholder="https://..."
               {...text("imageUrl")}
             />
@@ -214,9 +235,16 @@ export function EquipmentEditor({
               accept="image/png,image/jpeg,image/webp"
               className="sr-only"
               disabled={busy}
-              onChange={(e) => upload(e.target.files?.[0])}
+              aria-describedby="eq-image-help"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                void upload(file);
+              }}
             />
           </label>
+          <p id="eq-image-help" className="text-sm muted">PNG, JPEG หรือ WebP ไม่เกิน 10 MB ระบบจะเตรียม PNG ไม่เกิน 3 MB</p>
+          {imageStage && <p role="status" className="text-sm muted">{imageStage === "preparing" ? "กำลังเตรียมภาพ..." : "กำลังอัปโหลดภาพ..."}</p>}
           {draft.imageUrl ? (
             <img
               src={safeImage(draft.imageUrl)}
@@ -253,7 +281,7 @@ export function EquipmentEditor({
               ยกเลิก
             </Button>
             <Button disabled={busy}>
-              {busy ? "กำลังบันทึก..." : "บันทึกอุปกรณ์"}
+              {busy && !imageStage ? "กำลังบันทึก..." : "บันทึกอุปกรณ์"}
             </Button>
           </div>
         </form>

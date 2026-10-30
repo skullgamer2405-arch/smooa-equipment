@@ -75,17 +75,17 @@ import assert from "node:assert/strict";
 import { PNG } from "pngjs";
 import { memoryDb } from "./fixtures/memory-db.mjs";
 import { createBookingService } from "../server/bookings.mjs";
-import { canonicalImage } from "../server/images.mjs";
+import { canonicalImage, storeImage } from "../server/images.mjs";
 import { createNotifications, escapeHtml } from "../server/notifications.mjs";
 import nodemailer from "nodemailer";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const payload = { requestId:"c8ed05f3-76b1-4f51-83bf-1581bbb82591",equipmentId:"fixture",fullName:"<b>ผู้ทดสอบ</b>",studentId:"TEST-01",faculty:"คณะทดสอบ",department:"สาขาทดสอบ",affiliation:"",applicantEmail:"borrower@example.invalid",applicantPhone:"",activityName:"กิจกรรม",reason:"ทดสอบ",startDate:"2035-06-10",endDate:"2035-06-11",terms:true };
 function fixture() {
  const db=memoryDb(), mails=[],images=[];
  db.rows.set("equipment/fixture",{title:"ลำโพง <img src=x>",assetCode:"EQ-01",status:"available"});
- const env={PUBLIC_APP_URL:"https://equipment.example.invalid",ADMIN_NOTIFICATION_EMAIL:"admin@example.invalid"};
- const app=createApp({env,getDb:()=>db,verifyAdmin:async token=>({uid:token,email_verified:token!=="unverified",admin:token==="admin"}),transport:{sendMail:async mail=>mails.push(mail)},bucket:async()=>({name:"fixture-bucket",file:name=>({save:async(bytes,options)=>images.push({name,bytes,options})})})});
+ const env={PUBLIC_APP_URL:"https://equipment.example.invalid",ADMIN_NOTIFICATION_EMAIL:"admin@example.invalid",CLOUDINARY_CLOUD_NAME:"fixture-cloud",CLOUDINARY_API_KEY:"fixture-key",CLOUDINARY_API_SECRET:"fixture-secret"};
+ const app=createApp({env,getDb:()=>db,verifyAdmin:async token=>({uid:token,email_verified:token!=="unverified",admin:token==="admin"}),transport:{sendMail:async mail=>mails.push(mail)},request:async(url,options)=>{images.push({url,options});const name=options.body.get("public_id");return Response.json({secure_url:`https://res.cloudinary.com/fixture-cloud/image/upload/v1/${name}.png`,public_id:name,resource_type:"image",format:"png"});}});
  return {db,mails,images,app,env};
 }
 async function serve(app,run) {
@@ -271,17 +271,18 @@ test("a retried Firestore transaction that loses the notification claim never se
  assert.equal(sent.length,0);
 });
 
-test("images are decoded and re-encoded as PNG, stored through persistent storage with generated names",async()=>{
+test("images are decoded and re-encoded as PNG, uploaded to Cloudinary with generated names",async()=>{
  const f=fixture();const valid=PNG.sync.write({width:1,height:1,data:Buffer.from([0,0,0,255])});
  for(const bytes of [Buffer.from("<svg onload=alert(1)>"),Buffer.from("not an image"),valid.subarray(0,28)])assert.throws(()=>canonicalImage(bytes));
  const huge=Buffer.from(valid);huge.writeUInt32BE(100000,16);assert.throws(()=>canonicalImage(huge));
  await serve(f.app,async request=>{
   const upload=async bytes=>{const data=new FormData();data.append("image",new Blob([bytes],{type:"image/png"}),"evil.html");return request("/api/upload-image",{method:"POST",headers:{Authorization:"Bearer admin"},body:data});};
   assert.equal((await upload(Buffer.from("html"))).status,400);
+  assert.equal((await upload(Buffer.alloc(3*1024*1024+1))).status,413);assert.equal(f.images.length,0);
   const response=await upload(valid);assert.equal(response.status,200);
-  const body=await response.json();assert(body.imageUrl.startsWith("https://firebasestorage.googleapis.com/"));
+  const body=await response.json();assert(body.imageUrl.startsWith("https://res.cloudinary.com/"));
  });
- assert.equal(f.images.length,1);assert.match(f.images[0].name,/^equipment\/[a-f0-9-]+\.png$/);assert.equal(f.images[0].options.metadata.contentType,"image/png");
+ assert.equal(f.images.length,1);assert.match(f.images[0].options.body.get("public_id"),/^equipment\/[a-f0-9-]+$/);
 });
 
 test("PNG structure is validated before decode, including repeated and truncated headers",()=>{
@@ -323,4 +324,39 @@ test("calendar range is bounded and projection pagination preserves all records"
  const first=await service.calendar({from:"2035-06-01",to:"2035-06-30"});assert.equal(first.items.length,100);
  const second=await service.calendar({from:"2035-06-01",to:"2035-06-30",after:first.nextCursor});assert.equal(second.items.length,5);assert.equal(second.nextCursor,null);
  await assert.rejects(()=>service.calendar({from:"2035-01-01",to:"2035-12-31"}),e=>e.status===400);
+});
+
+const cloudEnv={CLOUDINARY_CLOUD_NAME:"fixture-cloud",CLOUDINARY_API_KEY:"fixture-key",CLOUDINARY_API_SECRET:"fixture-secret"};
+const imageBytes=()=>PNG.sync.write({width:1,height:1,data:Buffer.from([0,0,0,255])});
+test("Cloudinary fixed endpoint, deterministic signing and canonical multipart",async()=>{
+ let calls=0;
+ const result=await storeImage(imageBytes(),{env:cloudEnv,now:()=>new Date("2035-01-01T00:00:00Z"),request:async(url,options)=>{
+  calls++;assert.equal(url,"https://api.cloudinary.com/v1_1/fixture-cloud/image/upload");assert.equal(options.method,"POST");assert.equal(options.redirect,"error");assert(options.signal instanceof AbortSignal);
+  const form=options.body,id=form.get("public_id"),timestamp=String(Date.parse("2035-01-01T00:00:00Z")/1000);
+  assert.match(id,/^equipment\/[a-f0-9-]{36}$/);assert.equal(form.get("timestamp"),timestamp);assert.equal(form.get("overwrite"),"false");assert.equal(form.get("api_key"),"fixture-key");
+  assert.equal(form.get("signature"),createHash("sha256").update(`overwrite=false&public_id=${id}&timestamp=${timestamp}fixture-secret`).digest("hex"));
+  assert.equal(form.get("file").type,"image/png");assert.deepEqual(Buffer.from(await form.get("file").arrayBuffer()),canonicalImage(imageBytes()));
+  assert.deepEqual([...form.keys()].sort(),["api_key","file","overwrite","public_id","signature","timestamp"]);
+  return Response.json({public_id:id,format:"png",resource_type:"image",secure_url:`https://res.cloudinary.com/fixture-cloud/image/upload/v123/${id}.png`});
+ }});assert.equal(calls,1);assert.equal(result.success,true);
+});
+test("Cloudinary config and every upstream failure fail closed with sanitized 503",async()=>{
+ for(const env of [{},{...cloudEnv,CLOUDINARY_CLOUD_NAME:"../evil"},{...cloudEnv,CLOUDINARY_API_SECRET:" "}]){
+  await assert.rejects(storeImage(imageBytes(),{env,request:()=>{throw Error("must not call");}}),e=>e.status===503&&!e.message.includes("fixture-secret"));
+ }
+ const failures=[()=>{throw Error("fixture-secret network redirect timeout");},()=>new Response("fixture-secret",{status:429}),()=>new Response("fixture-secret",{status:302}),()=>Response.json({}),()=>Response.json({error:{message:"fixture-secret"}})];
+ for(const mutate of [v=>({...v,secure_url:"https://evil.invalid/x.png"}),v=>({...v,secure_url:v.secure_url.replace("fixture-cloud","other")}),v=>({...v,secure_url:v.secure_url+"?secret=x"}),v=>({...v,public_id:"equipment/other"}),v=>({...v,format:"jpg"}),v=>({...v,resource_type:"raw"}),v=>({...v,secure_url:v.secure_url.replace(".png",".jpg")})])failures.push((_url,o)=>{const id=o.body.get("public_id");return Response.json(mutate({public_id:id,format:"png",resource_type:"image",secure_url:`https://res.cloudinary.com/fixture-cloud/image/upload/v1/${id}.png`}));});
+ for(const request of failures)await assert.rejects(storeImage(imageBytes(),{env:cloudEnv,request}),e=>e.status===503&&!/fixture-secret|network|redirect|timeout/.test(e.message));
+});
+
+test("Cloudinary timeout is exactly 15000ms and invalid images never reach upstream",async()=>{
+ let calls=0;
+ await assert.rejects(storeImage(Buffer.from("invalid"),{env:cloudEnv,request:()=>{calls++;}}),e=>e.status===400);
+ const original=AbortSignal.timeout;let delay;
+ AbortSignal.timeout=ms=>{delay=ms;return AbortSignal.abort();};
+ try {await assert.rejects(storeImage(imageBytes(),{env:cloudEnv,request:async(_url,options)=>{calls++;options.signal.throwIfAborted();}}),e=>e.status===503);}
+ finally {AbortSignal.timeout=original;}
+ assert.equal(delay,15000);assert.equal(calls,1);
+ const corrupt=Buffer.from(imageBytes());corrupt[29]^=1;
+ assert.throws(()=>canonicalImage(corrupt),e=>e.status===400);
 });

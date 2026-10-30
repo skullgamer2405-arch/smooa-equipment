@@ -6,10 +6,10 @@ import { firebaseConfig } from "../shared/firebase-config.js";
 
 const env = {
   VITE_FIREBASE_API_KEY: "fixture-public-key", VITE_FIREBASE_AUTH_DOMAIN: "fixture.firebaseapp.com",
-  VITE_FIREBASE_PROJECT_ID: "fixture-project", VITE_FIREBASE_STORAGE_BUCKET: "fixture-project.firebasestorage.app", VITE_FIREBASE_APP_ID: "fixture-app",
+  VITE_FIREBASE_PROJECT_ID: "fixture-project", VITE_FIREBASE_APP_ID: "fixture-app",
   VITE_LINE_LIFF_ID: "123-fixture", LINE_ENABLED: "true", LINE_LOGIN_CHANNEL_ID: "123", LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: "fixture-only",
   CRON_SECRET: "x".repeat(32), PUBLIC_APP_URL: "https://equipment.example.invalid", ADMIN_NOTIFICATION_EMAIL: "admin@example.invalid",
-  SMTP_HOST: "smtp.example.invalid", SMTP_USER: "sender@example.invalid", SMTP_PASS: "fixture-only", FIREBASE_STORAGE_BUCKET: "fixture-project.firebasestorage.app",
+  SMTP_HOST: "smtp.example.invalid", SMTP_USER: "sender@example.invalid", SMTP_PASS: "fixture-only", CLOUDINARY_CLOUD_NAME: "fixture-cloud", CLOUDINARY_API_KEY:"fixture-key", CLOUDINARY_API_SECRET:"fixture-secret",
   FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify({project_id:"fixture-project",client_email:"fixture@example.invalid",private_key:"fixture-only"}),
 };
 test("release checks fail closed on missing settings without exposing credential values",()=>{
@@ -22,7 +22,11 @@ test("release checks separate public frontend from private API and reject projec
   const publicEnv=Object.fromEntries(Object.entries(env).filter(([key])=>key.startsWith("VITE_")));
   assert.deepEqual(releaseIssues(publicEnv,true),[]);
   assert(releaseIssues({...env,VITE_FIREBASE_PROJECT_ID:"other-project"}).includes("Firebase server/client project matches"));
-  assert(releaseIssues({...env,VITE_FIREBASE_STORAGE_BUCKET:"other-bucket"}).includes("Firebase server/client bucket matches"));
+  assert.deepEqual(releaseIssues({...env,VITE_FIREBASE_STORAGE_BUCKET:"other-bucket"}),[]);
+  for(const name of ["CLOUDINARY_CLOUD_NAME","CLOUDINARY_API_KEY","CLOUDINARY_API_SECRET"])assert(releaseIssues({...env,[name]:""}).some(x=>x.includes("CLOUDINARY")));
+  assert(releaseIssues({...env,CLOUDINARY_CLOUD_NAME:"../evil"}).some(x=>x.includes("CLOUDINARY")));
+  for(const name of ["VITE_CLOUDINARY_CLOUD_NAME","VITE_CLOUDINARY_API_KEY","VITE_CLOUDINARY_API_SECRET"])assert(releaseIssues({...env,[name]:"fixture"},true).some(x=>x.includes(name)));
+  assert.equal(firebaseConfig(env).storageBucket,undefined);
   for(const flags of [{VITE_DEMO_MODE:"true"},{SMO_DEMO_MODE:"true"},{VERCEL_ENV:"preview"}])assert(releaseIssues({...env,...flags}).includes("Live build: disable demo flags"));
   assert(releaseIssues({...env,VITE_SMTP_PASS:"must-never-be-public"},true).some(x=>x.includes("Remove browser-exposed secret")));
   assert.throws(()=>firebaseConfig({}),/VITE_FIREBASE_API_KEY/);

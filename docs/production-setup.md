@@ -4,6 +4,8 @@
 
 โค้ดมีตัวตรวจค่าก่อน build Production แต่การตรวจนี้ดูรูปแบบ/ความครบถ้วนเท่านั้น ไม่ได้ล็อกอินหรือยืนยันว่ารหัสลับใช้ได้จริง บัญชี อีเมล LINE และสิทธิ์บนคลาวด์ยังต้องตั้งและทดสอบตามด้านล่าง
 
+> ส่วน Firebase Storage ในคู่มือ PDF เดิม 27 หน้า [`setup-guide-th.pdf`](../static/manuals/setup-guide-th.pdf) เลิกใช้กับการอัปโหลดภาพใหม่แล้ว ให้ทำตาม [คู่มือ Cloudinary](cloudinary-setup.md) โดยไม่ต้องเปิด Storage หรือ Blaze ตาม PDF ไฟล์ PDF เดิมคงไว้เป็นเอกสารอ้างอิง
+
 ## 1. เลือกโดเมนและทดสอบแยกก่อน
 
 1. ใน Vercel เลือกโปรเจกต์ `smooa-equipment` → **Settings → Domains** คัดลอกโดเมนถาวรของโปรเจกต์ เช่น `https://ชื่อโปรเจกต์.vercel.app` ใช้โดเมนเดียวกันใน `PUBLIC_APP_URL`, Firebase Authorized Domains และ LIFF Endpoint อย่าใช้ URL หน้า dashboard หรือ URL Preview ชั่วคราว
@@ -21,21 +23,19 @@
 | `VITE_FIREBASE_API_KEY` | `apiKey` |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `authDomain` |
 | `VITE_FIREBASE_PROJECT_ID` | `projectId` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` |
 | `VITE_FIREBASE_APP_ID` | `appId` |
-| `FIREBASE_STORAGE_BUCKET` | ค่าเดียวกับ `storageBucket` ฝั่งเซิร์ฟเวอร์ |
 
-ใน Vercel ไป **Settings → Environment Variables** ตั้งค่าระดับโปรเจกต์ให้ services ที่ใช้เห็นได้ หรือเลือก `app` สำหรับค่าขึ้นต้น `VITE_` และให้ `api` เห็นค่าข้างต้นด้วยเพื่อเทียบ project/bucket เลือก environment ให้ถูกต้อง ค่า `VITE_*` ต้อง build ใหม่จึงเปลี่ยนตาม อย่านำค่าจาก project ทดสอบไปใส่ Production
+ใน Vercel เลือกโปรเจกต์ที่ต้องการให้ถูกก่อน แล้วไป **Settings → Environment Variables** เลือก **Production ของโปรเจกต์นั้น** ตั้งสี่ค่าข้างต้นเป็น **Config** (ข้อมูลสาธารณะ ไม่ใช่ Secret) ให้ `app` ใช้ตอน build และ `api` ใช้เทียบ project ค่า `VITE_FIREBASE_STORAGE_BUCKET` เป็น Config ทางเลือก จะคงค่าเดิมหรือเว้นว่างก็ได้ ส่วน `FIREBASE_STORAGE_BUCKET` เดิมไม่ถูกใช้แล้ว ค่า `VITE_*` ต้อง build ใหม่จึงเปลี่ยนตาม อย่านำค่าจาก project ทดสอบไปใส่โปรเจกต์หลัก
 
-**ค่าลับฝั่ง API**: ตั้ง `FIREBASE_SERVICE_ACCOUNT_JSON` เป็น JSON ของ service account สำหรับ project เดียวกัน ใน Vercel โดยตรง เปิด Sensitive ถ้ามีตัวเลือก ห้ามตั้งชื่อขึ้นต้น `VITE_` ห้ามส่ง JSON ในแชตหรือ commit
+**ค่าลับฝั่ง API**: ตั้ง `FIREBASE_SERVICE_ACCOUNT_JSON` เป็น JSON ของ service account สำหรับ project เดียวกัน ใน Vercel โดยตรง เลือกชนิด Secret และ scope เฉพาะ `api` ห้ามตั้งชื่อขึ้นต้น `VITE_` ห้ามส่ง JSON ในแชตหรือ commit
 
-ให้ผู้ดูแล Google Cloud สร้าง service account ผ่าน **IAM & Admin → Service Accounts** และให้สิทธิ์เท่าที่ API ใช้: `Cloud Datastore User`, `Firebase Authentication Viewer` และ `Storage Object User` เฉพาะ bucket ที่ใช้งาน จากนั้น **Keys → Add key → Create new key → JSON** เก็บไฟล์อย่างปลอดภัย การให้สิทธิ์แอดมินแก่ผู้ใช้เป็นงาน operator แยก ไม่ต้องให้ API runtime มีสิทธิ์จัดการบัญชีทุกอย่าง
+ให้ผู้ดูแล Google Cloud สร้าง service account ผ่าน **IAM & Admin → Service Accounts** และให้สิทธิ์เท่าที่ API ใช้: `Cloud Datastore User`, `Firebase Authentication Viewer` เท่านั้น ไม่ต้องให้สิทธิ์ Firebase Storage จากนั้น **Keys → Add key → Create new key → JSON** คัดลอก JSON จากไฟล์ที่ดาวน์โหลดไปวางใน Vercel โดยตรง เก็บไฟล์ในที่ปลอดภัยนอก repository และไม่ส่ง private key ในแชต การให้สิทธิ์แอดมินแก่ผู้ใช้เป็นงาน operator แยก ไม่ต้องให้ API runtime มีสิทธิ์จัดการบัญชีทุกอย่าง
 
 ใน Firebase Console:
 
 - **Authentication → Sign-in method** เปิด Email/Password สำหรับผู้ดูแล
 - **Authentication → Settings → Authorized domains** เพิ่มเฉพาะ hostname เว็บจริงและเว็บทดสอบที่ใช้ ไม่ใส่ `https://` ในช่องนี้
-- ตรวจว่า Firestore และ Storage bucket พร้อมใช้ สิทธิ์และโควตาของ project เหมาะสม หากระบบขอผูก billing ให้เจ้าของตรวจเงื่อนไขก่อน งานนี้ไม่เปิดบริการเสียเงินแทนเจ้าของ
+- ตรวจว่า Firestore พร้อมใช้และสิทธิ์ตรงกับ project การอัปโหลดภาพใหม่ใช้ Cloudinary จึงไม่ต้องสร้าง Firebase Storage bucket หรือเปิด Blaze หากหน้าตั้งค่า Storage ขอ billing ให้หยุดขั้นตอนนั้น
 - บัญชีแอดมินต้องยืนยันอีเมลและมี custom claim `admin=true` บัญชี Firebase ที่ล็อกอินได้เฉย ๆ ไม่ได้เป็นแอดมิน
 
 สำหรับผู้ดูแล Firebase ที่มีสิทธิ์จัดการบัญชี: เลือก UID ที่เจ้าของยืนยันจาก Authentication → Users แล้วใช้ Terminal ที่เก็บ credentials แบบปลอดภัย:
@@ -51,10 +51,14 @@ node scripts/admin-claim.mjs --project YOUR_PROJECT_ID --uid VERIFIED_ADMIN_UID 
 **Deploy policy แยกจากหน้าเว็บ**: ให้ operator ตรวจ project เป้าหมายและสำรองข้อมูล/กฎเดิม จากนั้นใช้ Firebase CLI รุ่นที่กำหนด:
 
 ```bash
-npx --yes firebase-tools@15.34.1 deploy --only firestore:rules,firestore:indexes,storage --project YOUR_PROJECT_ID
+npx --yes firebase-tools@15.34.1 deploy --only firestore:rules,firestore:indexes --project YOUR_PROJECT_ID
 ```
 
 รอ indexes พร้อมก่อนเปิดจอง สคริปต์ `project-public-calendar.mjs --project YOUR_PROJECT_ID` เป็น dry run; ใช้ `--apply` หลังตรวจข้อมูล approved เดิมเพื่อสร้างปฏิทินที่ไม่มีข้อมูลผู้ยืม ตรวจว่าข้อมูลเก่าใน `publicCalendar` มีเฉพาะ equipment/date/status ด้วย ตั้ง Firestore TTL ของ collection group `submissionLimits` บน field `expiresAt` เพื่อล้างเอกสารโควตาเก่า ไม่ใช้ TTL เป็นกลไกอนุญาตการส่งคำขอ
+
+## ภาพอุปกรณ์ผ่าน Cloudinary
+
+ทำตาม [คู่มือตั้งค่า Cloudinary Free](cloudinary-setup.md) ก่อนตรวจรับจริง ตั้ง `CLOUDINARY_CLOUD_NAME` เป็น Config และ `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` เป็น Secret เฉพาะ `api` ใน Production ของโปรเจกต์ที่เลือก ไม่ใช้ `VITE_` และไม่ใส่ใน `app` เจ้าของต้องตรวจแพ็กเกจ/โควตาปัจจุบัน รวมถึงรองรับ PNG ที่เซิร์ฟเวอร์สร้างใหม่ได้ถึง 10 MiB ห้ามอัปเกรดเสียเงินอัตโนมัติ ผลตรวจ release ไม่ยืนยันว่าบัญชีใช้งานได้จริง
 
 ## 3. เชื่อมอีเมลผู้ดูแล
 
@@ -121,7 +125,7 @@ npm run release:check               # ตรวจค่าฝั่ง API เ�
 ก่อน promote โปรเจกต์หลัก ให้ตรวจด้วยบัญชีทดสอบบน staging แยก:
 
 - ล็อกอินแอดมินจริงได้ บัญชีธรรมดา/ยังไม่ยืนยันอีเมลเข้าไม่ได้
-- ส่งคำขอ อนุมัติ ปฏิเสธ รับคืน อัปโหลดภาพ นำเข้าไฟล์และ QR ใช้งานได้ รายการส่วนตัวไม่ปรากฏในปฏิทินสาธารณะ
+- ส่งคำขอ อนุมัติ ปฏิเสธ รับคืน นำเข้าไฟล์และ QR ใช้งานได้ ตรวจอัปโหลดภาพใหม่ เปลี่ยนภาพ โหลดหน้าใหม่ รายการอุปกรณ์และภาพสำรองตาม [รายการตรวจรับ Cloudinary](cloudinary-setup.md#ตรวจรับก่อนเปิดใช้จริง) รายการส่วนตัวไม่ปรากฏในปฏิทินสาธารณะ
 - อีเมลถึงผู้รับที่เลือก LINE ถึงบัญชีที่ผูกไว้ เปิด Rich Menu ซ้ำไม่ถามเชื่อมซ้ำโดยไม่มีเหตุ
 - คืนของแล้วไม่เตือนซ้ำ ลองคำขอเดิมซ้ำไม่สร้างรายการ/ข้อความซ้ำ ตรวจคิวที่ต้องทบทวนและผล Cron จากข้อมูลทดสอบ
 - เปิดหน้าย่อยโดยตรง/refresh ได้ ตรวจ mobile LINE browser ทั้ง iOS/Android และบัญชีที่บล็อก OA

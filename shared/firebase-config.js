@@ -9,7 +9,7 @@ export function firebaseConfig(env) {
   };
   return Object.fromEntries(Object.entries(names).map(([field, name]) => {
     const value = env[name]?.trim();
-    if (!value) throw Error(`กรุณาตั้งค่า ${name} ก่อน build เว็บจริง`);
-    return [field, value];
+    if (!value && field !== "storageBucket") throw Error(`กรุณาตั้งค่า ${name} ก่อน build เว็บจริง`);
+    return [field, value || undefined];
   }));
 }

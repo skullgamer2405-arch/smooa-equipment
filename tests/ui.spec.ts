@@ -673,3 +673,107 @@ test("unavailable equipment prevents wasted entry and clean aliases keep navigat
       .getByRole("link", { name: "ปฏิทิน", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
+
+test("image preparation blocks duplicate editor actions and recovers without losing URL", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin.html?tab=equipment");
+  await page.getByRole("button", { name: "เพิ่มอุปกรณ์", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("URL รูปภาพ").fill("https://example.invalid/original.png");
+  await page.evaluate(() => {
+    const original = window.createImageBitmap;
+    Object.assign(window, { restoreBitmap: () => { window.createImageBitmap = original; } });
+    window.createImageBitmap = (() => new Promise((_, reject) => {
+      Reflect.set(window, "decodeCalls", (Reflect.get(window, "decodeCalls") || 0) + 1);
+      Object.assign(window, { failBitmap: () => reject(Error("fixture decode failed")) });
+    })) as typeof createImageBitmap;
+  });
+  const input = dialog.locator('input[type="file"]');
+  await input.setInputFiles({name:"broken.png",mimeType:"image/png",buffer:Buffer.from("broken")});
+  await expect(dialog.getByRole("status")).toContainText("กำลังเตรียมภาพ");
+  await expect(input).toBeDisabled();
+  await input.evaluate(element => {
+    const transfer = new DataTransfer(); transfer.items.add(new File(["duplicate"],"duplicate.png",{type:"image/png"}));
+    (element as HTMLInputElement).files=transfer.files;
+    element.dispatchEvent(new Event("change",{bubbles:true}));
+  });
+  expect(await page.evaluate(() => Reflect.get(window,"decodeCalls"))).toBe(1);
+  await dialog.getByRole("status").scrollIntoViewIfNeeded();
+  if (process.env.SCREENSHOT_EVIDENCE) console.log("SCREENSHOT_DESKTOP_BUSY=" + (await page.screenshot()).toString("base64"));
+  await page.setViewportSize({ width: 375, height: 900 });
+  await dialog.getByRole("status").scrollIntoViewIfNeeded();
+  if (process.env.SCREENSHOT_EVIDENCE) console.log("SCREENSHOT_MOBILE_BUSY=" + (await page.screenshot()).toString("base64"));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(dialog.getByRole("button",{name:"บันทึกอุปกรณ์",exact:true})).toBeDisabled();
+  await expect(dialog.getByLabel("URL รูปภาพ")).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await page.evaluate(() => Reflect.get(window,"failBitmap")());
+  await expect(dialog.getByRole("alert")).toContainText("เปิดไฟล์ภาพไม่ได้ กรุณาเลือกภาพใหม่");
+  await expect(dialog.getByLabel("URL รูปภาพ")).toHaveValue("https://example.invalid/original.png");
+  await expect(input).toBeEnabled();
+  await dialog.getByRole("alert").scrollIntoViewIfNeeded();
+  if (process.env.SCREENSHOT_EVIDENCE) console.log("SCREENSHOT_MOBILE_ERROR=" + (await page.screenshot()).toString("base64"));
+  expect(await input.inputValue()).toBe("");
+  await page.evaluate(() => Reflect.get(window,"restoreBitmap")());
+  const png = await page.evaluate(() => { const canvas = document.createElement("canvas"); canvas.width=7;canvas.height=5;return canvas.toDataURL().split(",")[1]; });
+  await input.setInputFiles({name:"small.png",mimeType:"image/png",buffer:Buffer.from(png,"base64")});
+  await expect(dialog.getByRole("img",{name:"ตัวอย่างรูปอุปกรณ์"})).toHaveAttribute("src",/^blob:/);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+});
+
+test("saved demo image remains fetchable after editor close and reopen", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin.html?tab=equipment");
+  await page.getByRole("button",{name:"เพิ่มอุปกรณ์",exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByLabel("ชื่ออุปกรณ์").fill("ภาพที่บันทึกไว้");
+  await dialog.getByLabel("รหัสอุปกรณ์").fill("SAVED-IMAGE");
+  const png=await page.evaluate(()=>{const canvas=document.createElement("canvas");canvas.width=7;canvas.height=5;return canvas.toDataURL().split(",")[1];});
+  await dialog.locator('input[type="file"]').setInputFiles({name:"saved.png",mimeType:"image/png",buffer:Buffer.from(png,"base64")});
+  const preview=dialog.getByRole("img",{name:"ตัวอย่างรูปอุปกรณ์"});
+  await expect(preview).toHaveAttribute("src",/^blob:/);
+  const url=await preview.getAttribute("src");
+  await dialog.getByRole("button",{name:"บันทึกอุปกรณ์",exact:true}).click();
+  await expect(dialog).not.toBeVisible();
+  expect(await page.evaluate(async url=>{try{return (await fetch(url!)).ok;}catch{return false;}},url)).toBe(true);
+  const row=page.locator("div.rounded-lg").filter({has:page.getByRole("heading",{name:"ภาพที่บันทึกไว้",exact:true})}).last();
+  await row.getByRole("button",{name:"แก้ไข",exact:true}).click();
+  await expect(dialog.getByLabel("URL รูปภาพ")).toHaveValue(url!);
+  await expect(dialog.getByRole("img",{name:"ตัวอย่างรูปอุปกรณ์"})).toHaveJSProperty("naturalWidth",7);
+});
+
+test("preparation finishing after route unmount creates no object URL or upload request", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin.html?tab=equipment");
+  await page.getByRole("button",{name:"เพิ่มอุปกรณ์",exact:true}).click();
+  const png=await page.evaluate(()=>{
+    const canvas=document.createElement("canvas");canvas.width=7;canvas.height=5;
+    const original=window.createImageBitmap;
+    const createURL=URL.createObjectURL;
+    Reflect.set(window,"lateURLs",0);
+    URL.createObjectURL=(blob)=>{Reflect.set(window,"lateURLs",Reflect.get(window,"lateURLs")+1);return createURL(blob);};
+    window.createImageBitmap=((file:Blob)=>new Promise(resolve=>{
+      Reflect.set(window,"finishPreparation",async()=>{
+        const bitmap=await original(file);
+        const close=bitmap.close.bind(bitmap);
+        bitmap.close=()=>{close();Reflect.set(window,"lateBitmapClosed",true);};
+        resolve(bitmap);
+      });
+    })) as typeof createImageBitmap;
+    return canvas.toDataURL().split(",")[1];
+  });
+  const uploads:string[]=[];
+  page.on("request",request=>{if(request.url().includes("/api/upload-image"))uploads.push(request.url());});
+  await page.getByRole("dialog").locator('input[type="file"]').setInputFiles({name:"pending.png",mimeType:"image/png",buffer:Buffer.from(png,"base64")});
+  await expect(page.getByRole("dialog").getByRole("status")).toContainText("กำลังเตรียมภาพ");
+  await page.evaluate(()=>{history.pushState({},"","/equipment.html");dispatchEvent(new PopStateEvent("popstate"));});
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page).toHaveURL(/\/equipment\.html$/);
+  await expect(page.getByRole("heading",{level:1})).toBeVisible();
+  await page.evaluate(()=>Reflect.get(window,"finishPreparation")());
+  await expect.poll(()=>page.evaluate(()=>Reflect.get(window,"lateBitmapClosed"))).toBe(true);
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  expect(await page.evaluate(()=>Reflect.get(window,"lateURLs"))).toBe(0);
+  expect(uploads).toEqual([]);
+});

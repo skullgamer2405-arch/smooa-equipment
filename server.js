@@ -9,6 +9,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { createLineRouter, createLineService } from "./server/line.mjs";
 import { createBookingService } from "./server/bookings.mjs";
 import { createNotifications } from "./server/notifications.mjs";
+import { IMAGE_INGRESS_MAX_BYTES } from "./shared/image-limits.js";
 import { storeImage } from "./server/images.mjs";
 import { bangkokDay } from "./shared/booking-schema.js";
 import { adminGuard, handle, apiError, ApiError, documentId } from "./server/http.mjs";
@@ -21,9 +22,9 @@ function firebase(env) {
     if (json) {
       const account = JSON.parse(json);
       if (env.VITE_FIREBASE_PROJECT_ID && account.project_id !== env.VITE_FIREBASE_PROJECT_ID.trim()) throw Error("PROJECT_MISMATCH");
-      return initializeApp({ credential: cert(account), storageBucket: env.FIREBASE_STORAGE_BUCKET });
+      return initializeApp({ credential: cert(account) });
     }
-    if (env.GOOGLE_APPLICATION_CREDENTIALS || env.FIREBASE_USE_ADC === "true") return initializeApp({ storageBucket: env.FIREBASE_STORAGE_BUCKET });
+    if (env.GOOGLE_APPLICATION_CREDENTIALS || env.FIREBASE_USE_ADC === "true") return initializeApp();
   } catch { /* fail closed, without exposing credential diagnostics */ }
   throw new ApiError(503, "ยังไม่ได้ตั้งค่าบริการ Firebase ฝั่งเซิร์ฟเวอร์");
 }
@@ -31,7 +32,7 @@ function mailTransport(env) {
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
   return nodemailer.createTransport({ host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), secure: env.SMTP_SECURE === "true" || env.SMTP_PORT === "465", requireTLS: true, auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }, connectionTimeout: 10000, socketTimeout: 15000 });
 }
-export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => { const app = firebase(env); const { getAuth } = await import("firebase-admin/auth"); return getAuth(app).verifyIdToken(token, true); }, bucket = async () => { const app = firebase(env); const { getStorage } = await import("firebase-admin/storage"); return getStorage(app).bucket(env.FIREBASE_STORAGE_BUCKET); }, transport, request = fetch, now = () => new Date() } = {}) {
+export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => { const app = firebase(env); const { getAuth } = await import("firebase-admin/auth"); return getAuth(app).verifyIdToken(token, true); }, transport, request = fetch, now = () => new Date() } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use((_req, res, next) => { res.set(securityHeaders); next(); });
@@ -89,10 +90,10 @@ export function createApp({ env = process.env, getDb = () => { firebase(env); re
   for (const [route, kind] of [["notify-admin-booking", "pending"], ["notify-borrower-approved", "approved"], ["notify-borrower-rejected", "rejected"]]) {
     app.post("/api/" + route, guard, handle(async (req, res) => res.json(await notifications().dispatch(documentId.parse(req.body.bookingId || req.body.id), kind))));
   }
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 0 } });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: IMAGE_INGRESS_MAX_BYTES, files: 1, fields: 0 } });
   app.post("/api/upload-image", guard, upload.single("image"), handle(async (req, res) => {
     if (!req.file?.buffer) throw new ApiError(400, "ไม่พบภาพที่อัปโหลด");
-    res.json(await storeImage(req.file.buffer, await bucket()));
+    res.json(await storeImage(req.file.buffer, { env, request, now }));
   }));
   app.use("/api", (_req, res) => res.status(404).json({ success: false, message: "ไม่พบ API นี้" }));
   app.use("/uploads", express.static(path.join(root, "public/uploads"), { dotfiles: "deny", setHeaders: (res) => res.set("X-Content-Type-Options", "nosniff") }));
