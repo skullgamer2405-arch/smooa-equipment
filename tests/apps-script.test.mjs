@@ -38,3 +38,16 @@ test("an ambiguous Apps Script send is never reported as sent or resent", () => 
  assert.deepEqual(f.send(request),{success:false});
  assert.equal(f.mail.length,1);
 });
+
+test("Apps Script accepts a normalized bounded recipient list with one dedup job",()=>{
+ const f=fixture();const request=f.envelope({...f.payload,to:" First@example.invalid , second@example.invalid "});
+ assert.deepEqual(f.send(request),{success:true});assert.deepEqual(f.send(request),{success:true});
+ assert.equal(f.mail.length,1);assert.equal(f.mail[0].to,"First@example.invalid,second@example.invalid");
+ const duplicate=fixture();assert.deepEqual(duplicate.send(duplicate.envelope({...duplicate.payload,to:"First@example.invalid,first@EXAMPLE.invalid"})),{success:true});
+ assert.equal(duplicate.mail[0].to,"First@example.invalid");
+});
+test("Apps Script rejects malformed recipient lists even when signed",()=>{
+ for(const to of ["a@example.invalid,",",a@example.invalid","a@example.invalid,,b@example.invalid","a@example.invalid,bad","a@example.invalid,b@example.invalid,c@example.invalid","a@example.invalid;b@example.invalid","\r\na@example.invalid","a@example.invalid\n","x".repeat(250)+"@example.invalid"]){
+  const f=fixture(); assert.deepEqual(f.send(f.envelope({...f.payload,to})),{success:false});assert.equal(f.mail.length,0);assert.equal(f.cache.size,0);
+ }
+});

@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url";
 import { config } from "dotenv";
 import { cloudinaryConfig } from "../server/images.mjs";
 import { firebaseConfig } from "../shared/firebase-config.js";
-import { validEmail as email, validWebhook } from "../shared/notification-config.js";
+import { validEmail as email, validWebhook, parseAdminEmails } from "../shared/notification-config.js";
 
 const https = value => {
   try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password; }
@@ -26,7 +26,7 @@ export function releaseIssues(env, frontend = false) {
   check("LINE_LOGIN_CHANNEL_ID", /^\d+$/.test(env.LINE_LOGIN_CHANNEL_ID || ""));
   check("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", Boolean(env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN?.trim()));
   check("CRON_SECRET >=32 characters", (env.CRON_SECRET?.trim().length || 0) >= 32);
-  check("ADMIN_NOTIFICATION_EMAIL", email(env.ADMIN_NOTIFICATION_EMAIL));
+  check("ADMIN_NOTIFICATION_EMAIL", Boolean(parseAdminEmails(env.ADMIN_NOTIFICATION_EMAIL)));
   const smtp = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
   const webhook = Boolean(env.APPS_SCRIPT_WEBHOOK_URL) && validWebhook(env.APPS_SCRIPT_WEBHOOK_URL) && (env.APPS_SCRIPT_SHARED_SECRET?.length || 0) >= 32;
   check("SMTP settings or Apps Script URL + secret >=32 characters", smtp || webhook);

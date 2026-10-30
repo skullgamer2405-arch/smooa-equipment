@@ -13,7 +13,10 @@ function doPost(event) {
     for (var i = 0; i < digest.length; i++) mismatch |= digest.charCodeAt(i) ^ (envelope.signature.charCodeAt(i) || 0);
     if (mismatch) throw new Error("UNAUTHORIZED");
     var payload = JSON.parse(envelope.payload);
-    if (typeof payload.timestamp !== "number" || Math.abs(Date.now() - payload.timestamp) > 120000 || !/^[A-Za-z0-9_-]{1,180}$/.test(payload.requestId) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.to)) throw new Error("INVALID");
+    if (typeof payload.timestamp !== "number" || Math.abs(Date.now() - payload.timestamp) > 120000 || !/^[A-Za-z0-9_-]{1,180}$/.test(payload.requestId)) throw new Error("INVALID");
+    var recipients = smoAdminEmails(payload.to);
+    if (!recipients || (payload.kind && payload.kind !== "pending" && recipients.length !== 1)) throw new Error("INVALID");
+    payload.to = recipients.join(",");
     if (typeof payload.subject !== "string" || payload.subject.length > 500 || typeof payload.html !== "string" || payload.html.length > 16000) throw new Error("INVALID");
     if (!lock.tryLock(5000)) throw new Error("BUSY");
     acquired = true;
@@ -30,3 +33,13 @@ function doPost(event) {
   } finally { if (acquired) lock.releaseLock(); }
 }
 function smoResult(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
+
+// Keep the same bounded recipient rules as shared/notification-config.js.
+function smoAdminEmails(value) {
+  if (typeof value !== "string" || /[\r\n]/.test(value)) return null;
+  var entries = value.split(",");
+  if (entries.length > 2) return null;
+  var addresses = entries.map(function(entry) { return entry.trim(); });
+  if (!addresses.every(function(address) { return address.length <= 254 && /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(address); })) return null;
+  return addresses.filter(function(address, index) { return addresses.findIndex(function(other) { return other.toLowerCase() === address.toLowerCase(); }) === index; });
+}

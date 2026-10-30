@@ -197,7 +197,7 @@ test("incomplete email setup reports specific fixes and never sends a test",asyn
  const service=createNotifications({db,env:{},transport:null});
  assert.equal((await service.settings()).issues.length,2);
  await assert.rejects(()=>service.test(),e=>e.status===503&&e.message.includes("ADMIN_NOTIFICATION_EMAIL")&&e.message.includes("SMTP_HOST"));
- for(const recipient of ["bad", "first@example.invalid,second@example.invalid", "admin@example.invalid\r\nBcc: victim@example.invalid"]){
+ for(const recipient of ["bad", "admin@example.invalid\r\nBcc: victim@example.invalid"]){
   const invalid=createNotifications({db,env:{ADMIN_NOTIFICATION_EMAIL:recipient},transport:{sendMail:async()=>sends++}});
   await assert.rejects(()=>invalid.test(),e=>e.status===503);
  }
@@ -244,6 +244,7 @@ test("LINE approval alias retains admin guards and sends stored borrower email",
 
 test("Apps Script environment default is usable and a saved empty setting disables it",async()=>{
  const f=fixture(),id=await createBookingService({db:f.db}).create(payload);const requests=[];
+ f.env.ADMIN_NOTIFICATION_EMAIL="first@example.invalid,second@example.invalid";
  const service=createNotifications({db:f.db,env:{...f.env,APPS_SCRIPT_WEBHOOK_URL:"https://script.google.com/macros/s/fixture/exec",APPS_SCRIPT_SHARED_SECRET:"x".repeat(32)},transport:null,request:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return Response.json({success:true});}});
  assert.equal((await service.settings()).ready,true);
  assert.equal((await service.dispatch(id,"pending")).notification,"accepted");
@@ -359,4 +360,37 @@ test("Cloudinary timeout is exactly 15000ms and invalid images never reach upstr
  assert.equal(delay,15000);assert.equal(calls,1);
  const corrupt=Buffer.from(imageBytes());corrupt[29]^=1;
  assert.throws(()=>canonicalImage(corrupt),e=>e.status===400);
+});
+
+import { parseAdminEmails, validEmail } from "../shared/notification-config.js";
+test("admin recipients are bounded, normalized and reject malformed lists before trim", () => {
+ assert.deepEqual(parseAdminEmails(" First@example.invalid , second@example.invalid "),["First@example.invalid","second@example.invalid"]);
+ assert.deepEqual(parseAdminEmails("First@example.invalid,first@EXAMPLE.invalid"),["First@example.invalid"]);
+ assert.deepEqual(parseAdminEmails("admin@example.invalid"),["admin@example.invalid"]);
+ for(const value of [undefined,"",",a@example.invalid","a@example.invalid,","a@example.invalid,,b@example.invalid","a@example.invalid,b@example.invalid,c@example.invalid","a@example.invalid,bad","a@example.invalid; b@example.invalid","\r\na@example.invalid","a@example.invalid\n", "x".repeat(250)+"@example.invalid"] ) assert.equal(parseAdminEmails(value),null);
+ assert.equal(validEmail("a@example.invalid,b@example.invalid"),false);
+});
+test("two admins share one pending job; borrower notifications remain single address", async () => {
+ const f=fixture(),key=await createBookingService({db:f.db}).create(payload),sent=[];
+ const env={...f.env,ADMIN_NOTIFICATION_EMAIL:" First@example.invalid , second@example.invalid "};
+ const service=createNotifications({db:f.db,env,transport:{sendMail:async mail=>{sent.push(mail);return {accepted:["First@example.invalid"],rejected:["second@example.invalid"]};}}});
+ assert.equal((await service.settings()).adminEmail,"First@example.invalid,second@example.invalid");
+ assert.equal((await service.dispatch(key,"pending")).notification,"needs_review");
+ assert.equal((await service.dispatch(key,"pending")).notification,"already_queued");
+ assert.equal(sent.length,1);assert.equal(sent[0].to,"First@example.invalid,second@example.invalid");
+ assert.equal(f.db.rows.get("emailNotifications/"+key+"_pending").status,"needs_review");
+ f.db.rows.set("bookings/"+key,{...f.db.rows.get("bookings/"+key),status:"approved",applicantEmail:"a@example.invalid,b@example.invalid"});
+ await assert.rejects(()=>service.dispatch(key,"approved"),e=>e.status===503);
+ f.db.rows.set("bookings/"+key,{...f.db.rows.get("bookings/"+key),applicantEmail:payload.applicantEmail});
+ await service.dispatch(key,"approved"); assert.equal(sent[1].to,payload.applicantEmail);
+ await service.test();assert.equal(sent[2].to,"First@example.invalid,second@example.invalid");
+});
+
+test("SMTP must accept both intended recipients, comparing addresses without case",async()=>{
+ for(const accepted of [["first@example.invalid"],["FIRST@example.invalid","SECOND@example.invalid"]]) {
+  const f=fixture(),id=await createBookingService({db:f.db}).create(payload);let attempts=0;
+  const service=createNotifications({db:f.db,env:{...f.env,ADMIN_NOTIFICATION_EMAIL:"first@example.invalid,second@example.invalid"},transport:{sendMail:async()=>{attempts++;return {accepted,rejected:[]};}}});
+  assert.equal((await service.dispatch(id,"pending")).notification,accepted.length===2?"accepted":"needs_review");
+  assert.equal((await service.dispatch(id,"pending")).notification,"already_queued");assert.equal(attempts,1);
+ }
 });

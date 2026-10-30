@@ -48,3 +48,11 @@ test("Vercel and Express security policies agree and production build gates rema
   assert.match(vercel.services.api.buildCommand,/release:check/);
   assert.deepEqual(Object.keys(vercel.services),["app","api"]);
 });
+
+test("release checks accept one or two admin recipients only, keeping SMTP user single",()=>{
+ assert.deepEqual(releaseIssues({...env,ADMIN_NOTIFICATION_EMAIL:" a@example.invalid , b@example.invalid "}),[]);
+ assert.deepEqual(releaseIssues({...env,ADMIN_NOTIFICATION_EMAIL:"a@example.invalid,A@example.invalid"}),[]);
+ for(const value of ["a@example.invalid,", "a@example.invalid,bad","a@example.invalid,b@example.invalid,c@example.invalid","a@example.invalid\r\n"])
+  assert(releaseIssues({...env,ADMIN_NOTIFICATION_EMAIL:value}).includes("ADMIN_NOTIFICATION_EMAIL"));
+ assert(releaseIssues({...env,SMTP_USER:"a@example.invalid,b@example.invalid"}).includes("SMTP_USER email"));
+});

@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { ApiError, documentId } from "./http.mjs";
 import { asDay } from "../shared/calendar.js";
-import { validEmail, validWebhook } from "../shared/notification-config.js";
+import { validEmail, validWebhook, parseAdminEmails } from "../shared/notification-config.js";
 export { validWebhook };
 
 export const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -18,9 +18,9 @@ export function createNotifications({ db, transport, env = process.env, request 
     const snap = await settingsRef.get();
     const webhookUrl = snap.data()?.webhookUrl ?? env.APPS_SCRIPT_WEBHOOK_URL ?? "";
     const webhookReady = (env.APPS_SCRIPT_SHARED_SECRET?.length || 0) >= 32;
-    const adminEmail = env.ADMIN_NOTIFICATION_EMAIL?.trim() || "";
+    const adminEmail = parseAdminEmails(env.ADMIN_NOTIFICATION_EMAIL)?.join(",") || "";
     const issues = [];
-    if (!validEmail(adminEmail)) issues.push("ตั้งค่า ADMIN_NOTIFICATION_EMAIL เป็นอีเมลผู้ดูแลหนึ่งที่อยู่ใน Vercel");
+    if (!adminEmail) issues.push("ตั้งค่า ADMIN_NOTIFICATION_EMAIL ใน Vercel เป็นอีเมลผู้ดูแลหนึ่งหรือสองที่อยู่คั่นด้วยจุลภาค");
     if (webhookUrl) {
       if (!validWebhook(webhookUrl) || !webhookReady) issues.push("ตรวจ URL ของ Apps Script และ APPS_SCRIPT_SHARED_SECRET อย่างน้อย 32 ตัวอักษร");
     } else if (!transport) issues.push("ตั้งค่า SMTP_HOST, SMTP_PORT, SMTP_USER และ SMTP_PASS ใน Vercel");
@@ -45,7 +45,7 @@ export function createNotifications({ db, transport, env = process.env, request 
     const config = await settings();
     if (!transport && !config.webhookUrl) return { success: true, deliveredToSMTP: false, notification: "not_configured" };
     const to = kind === "pending" ? config.adminEmail : booking.applicantEmail;
-    if (!validEmail(to)) throw new ApiError(503, "ยังไม่ได้ตั้งค่าอีเมลผู้รับที่ถูกต้อง");
+    if (kind === "pending" ? !parseAdminEmails(to) : !validEmail(to)) throw new ApiError(503, "ยังไม่ได้ตั้งค่าอีเมลผู้รับที่ถูกต้อง");
     const job = db.collection("emailNotifications").doc(jobId);
     const claimed = await db.runTransaction(async (tx) => {
       const existing = await tx.get(job);
@@ -70,7 +70,7 @@ export function createNotifications({ db, transport, env = process.env, request 
         if (!response.ok || (await response.json()).success !== true) throw Error("WEBHOOK_NOT_ACCEPTED");
       } else {
         const result = await transport.sendMail({ from: env.SMTP_FROM || env.SMTP_USER, to, subject, html, text, disableFileAccess: true, disableUrlAccess: true });
-        if (result?.rejected?.length || (Array.isArray(result?.accepted) && !result.accepted.length)) throw Error("SMTP_NOT_ACCEPTED");
+        if (result?.rejected?.length || (Array.isArray(result?.accepted) && !to.split(",").every(address => result.accepted.some(accepted => typeof accepted === "string" && accepted.toLowerCase() === address.toLowerCase())))) throw Error("SMTP_NOT_ACCEPTED");
       }
       await job.update({ status: "sent", acceptedAt: now() });
       return { success: true, deliveredToSMTP: !config.webhookUrl, notification: "accepted" };
