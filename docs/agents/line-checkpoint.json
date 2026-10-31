@@ -1,0 +1,61 @@
+{
+  "status": "implemented_with_external_setup_pending",
+  "scope": "LINE OA Rich Menu + LIFF booking identity + approval and return reminders",
+  "schedule": {
+    "timezone": "Asia/Bangkok",
+    "target_time": "09:00",
+    "days": ["day_before_due", "due_day"],
+    "vercel_cron_utc": "0 2 * * *",
+    "hobby_precision": "09:00–09:59"
+  },
+  "validation": {
+    "typescript": "passed",
+    "frontend_unit_tests": 25,
+    "server_fixture_tests": 12,
+    "browser_fixture_tests": 33,
+    "browser_timezone": "Asia/Bangkok; borrowing/calendar fixtures use the same Thai day",
+    "line_consent_browser_coverage": "9 demo entry cases plus 4 isolated mocked connection cases; no real LINE/Firebase requests",
+    "demo_build": "passed",
+    "liff_enabled_build_with_fake_public_id": "passed",
+    "rich_menu": "2500x843 PNG, locally generated and visually inspected"
+  },
+  "not_verified": [
+    "real LINE Login/LIFF and linked OA identity",
+    "actual LINE delivery and OA quota",
+    "Firebase Admin credentials and deployed rules/index",
+    "real Firebase admin auth on Vercel",
+    "scheduled cron invocation and timing",
+    "Firestore emulator coverage"
+  ],
+  "external_changes": {
+    "line_messages_sent": false,
+    "rich_menu_published": false,
+    "firebase_production_changes": false,
+    "production_deployment": false
+  },
+  "remaining_setup": [
+    "Messaging API channel",
+    "LINE Login channel under the same provider",
+    "LIFF ID and stable public HTTPS endpoint",
+    "secure deployment credentials and verified admin allowlist",
+    "production backend/rules hardening",
+    "isolated integration trial before publishing"
+  ],
+  "entry_permission": {
+    "automatic_prompt": "borrower pages including direct QR/booking links",
+    "scope": "completed connection persists across browser sessions on the same origin/browser, scoped to demo/live and LIFF ID; automatically used for future bookings",
+    "decline": "remembers until browser session ends; offers permission on a later fresh session",
+    "admin_entry": "exempt",
+    "demo": "clearly labelled simulation; no real LINE requests",
+    "browser_storage": "localStorage only after successful connection; sessionStorage for unfinished login and dismissal; no application token, profile or LINE user ID storage",
+    "other_pages": "no LINE status bar, connection card or per-booking consent controls",
+    "expired_identity": "booking verifies a fresh session/token; no silent fallback to an unlinked booking",
+    "storage_limits": "cleared/blocked storage, another browser/device or another origin can require the app prompt again"
+  },
+  "oa": {
+    "id": "@474ezowf",
+    "friend_url": "https://line.me/R/ti/p/@474ezowf",
+    "source": "provided_by_owner",
+    "account_link_verified": "public add-friend page returned HTTP 200; identity supplied by owner; channel matching remains unverified"
+  }
+}

@@ -1,0 +1,35 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath, URL } from "node:url";
+export default defineConfig({
+  cacheDir: ".cache/vite",
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  publicDir: "static",
+  server: {
+    proxy: {
+      "/api": "http://127.0.0.1:3000",
+      "/uploads": "http://127.0.0.1:3000",
+    },
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              debugName: "framework-vendors",
+              name: (id: string) =>
+                /node_modules\/(firebase|@firebase)\//.test(id)
+                  ? "firebase-vendor"
+                  : /node_modules\/(react|react-dom|scheduler)\//.test(id)
+                    ? "react-vendor"
+                    : null,
+            },
+          ],
+        },
+      },
+    },
+  },
+});
