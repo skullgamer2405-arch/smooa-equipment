@@ -9,7 +9,9 @@ const adminVerifyCodes = new Set([
   "auth/argument-error", "auth/invalid-id-token", "auth/id-token-expired", "auth/id-token-revoked",
   "auth/user-disabled", "auth/user-not-found", "auth/insufficient-permission", "auth/invalid-credential",
   "auth/internal-error", "auth/project-not-found", "auth/tenant-id-mismatch",
-  "app/invalid-credential", "app/network-error", "app/invalid-app-options",
+  "app/invalid-credential", "app/network-error", "app/network-timeout", "app/invalid-app-options",
+  "ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "ERR_PACKAGE_PATH_NOT_EXPORTED",
+  "ERR_REQUIRE_ESM", "ERR_REQUIRE_ASYNC_MODULE", "ERR_UNSUPPORTED_DIR_IMPORT", "ERR_DLOPEN_FAILED",
 ]);
 export function adminGuard(verify) {
   return async (req, _res, next) => {
@@ -20,7 +22,8 @@ export function adminGuard(verify) {
       try { user = await verify(token); }
       catch (error) {
         // Keep operator diagnostics free of tokens, account identities and SDK messages.
-        console.warn("ADMIN_AUTH_VERIFY_FAILED", adminVerifyCodes.has(error?.code) ? error.code : "unknown");
+        const kind = ["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError"].includes(error?.name) ? error.name : "Error";
+        console.warn("ADMIN_AUTH_VERIFY_FAILED", adminVerifyCodes.has(error?.code) ? error.code : "unknown", kind);
         throw new ApiError(error?.status === 503 ? 503 : 403, "ตรวจสิทธิ์ผู้ดูแลไม่สำเร็จ กรุณาลองใหม่");
       }
       if (!adminIdentity(user)) {

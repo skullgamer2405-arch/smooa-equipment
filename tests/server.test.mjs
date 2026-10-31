@@ -400,12 +400,12 @@ test("admin authentication logs fixed reason codes without tokens, identities or
  const logs=[], original=console.warn;
  console.warn=(...args)=>logs.push(args);
  try {
-  for (const code of ["auth/id-token-revoked","auth/id-token-expired","auth/insufficient-permission","app/invalid-credential","auth/private-fixture-secret"]) {
+  for (const code of ["auth/id-token-revoked","auth/id-token-expired","auth/insufficient-permission","app/invalid-credential","ERR_MODULE_NOT_FOUND","ERR_REQUIRE_ASYNC_MODULE","auth/private-fixture-secret"]) {
    logs.length=0;let rejection;
    const guard=adminGuard(async()=>{throw Object.assign(Error("private-fixture-exception"),{code});});
    await guard({headers:{authorization:"Bearer private-fixture-token"}}, {}, error=>{rejection=error;});
    assert.equal(rejection.status,403);
-   assert.deepEqual(logs,[["ADMIN_AUTH_VERIFY_FAILED",code.includes("private-fixture")?"unknown":code]]);
+   assert.deepEqual(logs,[["ADMIN_AUTH_VERIFY_FAILED",code.includes("private-fixture")?"unknown":code,"Error"]]);
    assert(!JSON.stringify(logs).includes("private-fixture"));
   }
   for (const identity of [{uid:"private-fixture-user",admin:false,email_verified:true},{uid:"private-fixture-user",admin:true,email_verified:false}]) {
@@ -415,4 +415,25 @@ test("admin authentication logs fixed reason codes without tokens, identities or
    assert.deepEqual(logs,[["ADMIN_AUTH_DENIED","missing_admin_or_verified_email"]]);
   }
  } finally {console.warn=original;}
+});
+
+test("default Firebase verifier loads the real SDK and reports its failing stage without logging credentials",async()=>{
+ const {generateKeyPairSync}=await import("node:crypto");
+ const {getApps,deleteApp}=await import("firebase-admin/app");
+ const existing=new Set(getApps()),logs=[],original=console.warn;
+ console.warn=(...args)=>logs.push(args);
+ try {
+  const {privateKey}=generateKeyPairSync("rsa",{modulusLength:2048,privateKeyEncoding:{format:"pem",type:"pkcs8"},publicKeyEncoding:{format:"pem",type:"spki"}});
+  const env={FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({project_id:"fixture-project",client_email:"fixture@fixture-project.iam.gserviceaccount.com",private_key:privateKey}),VITE_FIREBASE_PROJECT_ID:"fixture-project"};
+  await serve(createApp({env}),async request=>{
+   const response=await request("/api/admin/booking-summary",{headers:{Authorization:"Bearer private-fixture-invalid-token"}});
+   assert.equal(response.status,403);
+  });
+  assert(logs.some(row=>row[0]==="ADMIN_AUTH_STAGE"&&row[1]==="verify_id_token"));
+  assert(logs.some(row=>row[0]==="ADMIN_AUTH_VERIFY_FAILED"&&row[1]==="auth/argument-error"));
+  assert(!/PRIVATE KEY|private-fixture|fixture@/.test(JSON.stringify(logs)));
+ } finally {
+  console.warn=original;
+  await Promise.all(getApps().filter(app=>!existing.has(app)).map(deleteApp));
+ }
 });

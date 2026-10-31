@@ -32,7 +32,20 @@ function mailTransport(env) {
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
   return nodemailer.createTransport({ host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), secure: env.SMTP_SECURE === "true" || env.SMTP_PORT === "465", requireTLS: true, auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }, connectionTimeout: 10000, socketTimeout: 15000 });
 }
-export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => { const app = firebase(env); const { getAuth } = await import("firebase-admin/auth"); return getAuth(app).verifyIdToken(token, true); }, transport, request = fetch, now = () => new Date() } = {}) {
+export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => {
+  const app = firebase(env);
+  let stage = "load_auth_sdk";
+  try {
+    const { getAuth } = await import("firebase-admin/auth");
+    stage = "create_auth_client";
+    const auth = getAuth(app);
+    stage = "verify_id_token";
+    return await auth.verifyIdToken(token, true);
+  } catch (error) {
+    console.warn("ADMIN_AUTH_STAGE", stage);
+    throw error;
+  }
+}, transport, request = fetch, now = () => new Date() } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use((_req, res, next) => { res.set(securityHeaders); next(); });
