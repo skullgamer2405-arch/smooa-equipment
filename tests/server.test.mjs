@@ -394,3 +394,25 @@ test("SMTP must accept both intended recipients, comparing addresses without cas
   assert.equal((await service.dispatch(id,"pending")).notification,"already_queued");assert.equal(attempts,1);
  }
 });
+
+import { adminGuard } from "../server/http.mjs";
+test("admin authentication logs fixed reason codes without tokens, identities or exception messages", async()=>{
+ const logs=[], original=console.warn;
+ console.warn=(...args)=>logs.push(args);
+ try {
+  for (const code of ["auth/id-token-revoked","auth/id-token-expired","auth/insufficient-permission","app/invalid-credential","auth/private-fixture-secret"]) {
+   logs.length=0;let rejection;
+   const guard=adminGuard(async()=>{throw Object.assign(Error("private-fixture-exception"),{code});});
+   await guard({headers:{authorization:"Bearer private-fixture-token"}}, {}, error=>{rejection=error;});
+   assert.equal(rejection.status,403);
+   assert.deepEqual(logs,[["ADMIN_AUTH_VERIFY_FAILED",code.includes("private-fixture")?"unknown":code]]);
+   assert(!JSON.stringify(logs).includes("private-fixture"));
+  }
+  for (const identity of [{uid:"private-fixture-user",admin:false,email_verified:true},{uid:"private-fixture-user",admin:true,email_verified:false}]) {
+   logs.length=0;let rejection;
+   await adminGuard(async()=>identity)({headers:{authorization:"Bearer private-fixture-token"}}, {}, error=>{rejection=error;});
+   assert.equal(rejection.status,403);
+   assert.deepEqual(logs,[["ADMIN_AUTH_DENIED","missing_admin_or_verified_email"]]);
+  }
+ } finally {console.warn=original;}
+});

@@ -5,6 +5,12 @@ export class ApiError extends Error {
 }
 export const documentId = z.string().regex(/^[\p{L}\p{N}_-]{1,150}$/u);
 export const adminIdentity = (user) => Boolean(user?.uid && user.admin === true && user.email_verified === true);
+const adminVerifyCodes = new Set([
+  "auth/argument-error", "auth/invalid-id-token", "auth/id-token-expired", "auth/id-token-revoked",
+  "auth/user-disabled", "auth/user-not-found", "auth/insufficient-permission", "auth/invalid-credential",
+  "auth/internal-error", "auth/project-not-found", "auth/tenant-id-mismatch",
+  "app/invalid-credential", "app/network-error", "app/invalid-app-options",
+]);
 export function adminGuard(verify) {
   return async (req, _res, next) => {
     try {
@@ -12,8 +18,15 @@ export function adminGuard(verify) {
       if (!token) throw new ApiError(401, "กรุณาเข้าสู่ระบบผู้ดูแล");
       let user;
       try { user = await verify(token); }
-      catch (error) { throw new ApiError(error.status === 503 ? 503 : 403, "ตรวจสิทธิ์ผู้ดูแลไม่สำเร็จ กรุณาลองใหม่"); }
-      if (!adminIdentity(user)) throw new ApiError(403, "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล");
+      catch (error) {
+        // Keep operator diagnostics free of tokens, account identities and SDK messages.
+        console.warn("ADMIN_AUTH_VERIFY_FAILED", adminVerifyCodes.has(error?.code) ? error.code : "unknown");
+        throw new ApiError(error?.status === 503 ? 503 : 403, "ตรวจสิทธิ์ผู้ดูแลไม่สำเร็จ กรุณาลองใหม่");
+      }
+      if (!adminIdentity(user)) {
+        console.warn("ADMIN_AUTH_DENIED", "missing_admin_or_verified_email");
+        throw new ApiError(403, "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล");
+      }
       req.adminUser = user;
       next();
     } catch (error) { next(error); }
