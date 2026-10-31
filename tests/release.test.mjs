@@ -56,3 +56,25 @@ test("release checks accept one or two admin recipients only, keeping SMTP user 
   assert(releaseIssues({...env,ADMIN_NOTIFICATION_EMAIL:value}).includes("ADMIN_NOTIFICATION_EMAIL"));
  assert(releaseIssues({...env,SMTP_USER:"a@example.invalid,b@example.invalid"}).includes("SMTP_USER email"));
 });
+
+test("Firebase credential diagnostics distinguish absent, malformed and incomplete settings without leaking values",()=>{
+ const cases = [
+  [undefined, "missing in API build environment"],
+  ["private-fixture-not-json", "invalid JSON"],
+  [JSON.stringify("private-fixture-string"), "expected a JSON object"],
+  ["null", "expected a JSON object"],
+  ["[]", "expected a JSON object"],
+  [JSON.stringify({project_id:"fixture-project",client_email:"fixture@example.invalid"}), "missing/non-string fields: private_key"],
+  [JSON.stringify({project_id:"fixture-project",client_email:42,private_key:"private-fixture-value"}), "missing/non-string fields: client_email"],
+ ];
+ for (const [value, reason] of cases) {
+  const issues=releaseIssues({...env,FIREBASE_SERVICE_ACCOUNT_JSON:value});
+  assert(issues.some(issue=>issue.includes(reason)), reason);
+  assert(issues.includes("FIREBASE_SERVICE_ACCOUNT_JSON (or _B64)"));
+  assert(!issues.includes("Firebase server/client project matches"), "unreadable credentials must not imply a project mismatch");
+  assert(!JSON.stringify(issues).includes("private-fixture"));
+ }
+ assert.deepEqual(releaseIssues({...env,FIREBASE_SERVICE_ACCOUNT_JSON:"",FIREBASE_SERVICE_ACCOUNT_JSON_B64:Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_JSON).toString("base64")}),[]);
+ const mismatch=releaseIssues({...env,FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({project_id:"other-project",client_email:"fixture@example.invalid",private_key:"private-fixture-value"})});
+ assert.deepEqual(mismatch,["Firebase server/client project matches"]);
+});

@@ -29,6 +29,16 @@
 
 **ค่าลับฝั่ง API**: ตั้ง `FIREBASE_SERVICE_ACCOUNT_JSON` เป็น JSON ของ service account สำหรับ project เดียวกัน ใน Vercel โดยตรง เลือกชนิด Secret และ scope เฉพาะ `api` ห้ามตั้งชื่อขึ้นต้น `VITE_` ห้ามส่ง JSON ในแชตหรือ commit
 
+หาก build หยุดที่ Firebase ให้ดูบรรทัด `Firebase credential:` ใน Build Logs:
+
+- `missing in API build environment`: ตรวจชื่อตัวแปร, environment Production และ service `api` ของโปรเจกต์ที่กำลัง deploy
+- `invalid JSON`: วางเนื้อหาไฟล์ JSON ทั้งหมดตั้งแต่ `{` ถึง `}` โดยตรง ไม่ใช่ชื่อไฟล์หรือพาธ
+- `expected a JSON object`: ค่าที่วางเป็นข้อความที่ถูกครอบซ้ำ, array หรือ null ให้ใช้เนื้อหาไฟล์ service account ต้นฉบับ
+- `missing/non-string fields`: ไฟล์ขาดฟิลด์ที่ระบุ หรือค่าไม่ใช่ข้อความ ตรวจว่าเป็นไฟล์ service account ไม่ใช่ Firebase web config
+- `Firebase server/client project matches`: เมื่อ JSON อ่านได้แล้ว ต้องให้ `project_id` ในไฟล์ตรงกับ `VITE_FIREBASE_PROJECT_ID`
+
+ตัวตรวจไม่แสดงค่า credential หรือรายละเอียดจาก JSON parser และไม่ตรวจ project ซ้ำเมื่อ credential ยังอ่านไม่ได้ ส่งเฉพาะบรรทัดเหตุผลเพื่อขอความช่วยเหลือได้ โดยเก็บไฟล์ต้นฉบับไว้นอกแชต การผ่านขั้นตอนนี้ยังไม่ยืนยันว่า private key ใช้ล็อกอิน Firebase ได้จริง
+
 ให้ผู้ดูแล Google Cloud สร้าง service account ผ่าน **IAM & Admin → Service Accounts** และให้สิทธิ์เท่าที่ API ใช้: `Cloud Datastore User`, `Firebase Authentication Viewer` เท่านั้น ไม่ต้องให้สิทธิ์ Firebase Storage จากนั้น **Keys → Add key → Create new key → JSON** คัดลอก JSON จากไฟล์ที่ดาวน์โหลดไปวางใน Vercel โดยตรง เก็บไฟล์ในที่ปลอดภัยนอก repository และไม่ส่ง private key ในแชต การให้สิทธิ์แอดมินแก่ผู้ใช้เป็นงาน operator แยก ไม่ต้องให้ API runtime มีสิทธิ์จัดการบัญชีทุกอย่าง
 
 ใน Firebase Console:

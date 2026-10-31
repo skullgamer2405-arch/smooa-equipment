@@ -35,10 +35,23 @@ export function releaseIssues(env, frontend = false) {
     check("SMTP_USER email", email(env.SMTP_USER));
     check("SMTP_PORT", /^\d+$/.test(port) && +port > 0 && +port <= 65535);
   }
-  let account;
-  try { account = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 || "", "base64").toString("utf8")); } catch { /* Never print the parser error or credential contents. */ }
-  check("FIREBASE_SERVICE_ACCOUNT_JSON (or _B64)", Boolean(account?.project_id && account?.client_email && account?.private_key));
-  check("Firebase server/client project matches", Boolean(client && account?.project_id === client.projectId));
+  let account, credentialIssue;
+  const raw = env.FIREBASE_SERVICE_ACCOUNT_JSON || Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 || "", "base64").toString("utf8");
+  if (!raw) credentialIssue = "missing in API build environment (check Production and service api scope)";
+  else {
+    try {
+      account = JSON.parse(raw);
+      if (!account || typeof account !== "object" || Array.isArray(account)) credentialIssue = "expected a JSON object (paste the complete service-account file)";
+      else {
+        const missing = ["project_id", "client_email", "private_key"].filter(key => typeof account[key] !== "string" || !account[key].trim());
+        if (missing.length) credentialIssue = "missing/non-string fields: " + missing.join(", ");
+      }
+    } catch { credentialIssue = "invalid JSON (paste the complete service-account file, not its filename)"; }
+  }
+  check("FIREBASE_SERVICE_ACCOUNT_JSON (or _B64)", !credentialIssue);
+  // Report only fixed reasons/field names; parser errors can contain private keys.
+  if (credentialIssue) issues.push("Firebase credential: " + credentialIssue);
+  else check("Firebase server/client project matches", Boolean(client && account.project_id === client.projectId));
   return issues;
 }
 
