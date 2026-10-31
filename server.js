@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import multer from "multer";
 import nodemailer from "nodemailer";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { createLineRouter, createLineService } from "./server/line.mjs";
 import { createBookingService } from "./server/bookings.mjs";
@@ -34,10 +35,8 @@ function mailTransport(env) {
 }
 export function createApp({ env = process.env, getDb = () => { firebase(env); return getFirestore(); }, verifyAdmin = async (token) => {
   const app = firebase(env);
-  let stage = "load_auth_sdk";
+  let stage = "create_auth_client";
   try {
-    const { getAuth } = await import("firebase-admin/auth");
-    stage = "create_auth_client";
     const auth = getAuth(app);
     stage = "verify_id_token";
     return await auth.verifyIdToken(token, true);
