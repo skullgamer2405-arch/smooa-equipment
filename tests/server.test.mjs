@@ -437,3 +437,28 @@ test("default Firebase verifier loads the real SDK and reports its failing stage
   await Promise.all(getApps().filter(app=>!existing.has(app)).map(deleteApp));
  }
 });
+
+test("Firebase JWKS dependency retrieves usable RSA and EC keys",async()=>{
+ const {createRequire}=await import("node:module");
+ const {createServer}=await import("node:http");
+ const {generateKeyPairSync,sign,verify}=await import("node:crypto");
+ const require=createRequire(import.meta.url);
+ const sdkRequire=createRequire(require.resolve("firebase-admin/app"));
+ const jwks=sdkRequire("jwks-rsa");
+ const pairs=[
+  {kid:"fixture-rsa",alg:"RS256",...generateKeyPairSync("rsa",{modulusLength:2048})},
+  {kid:"fixture-ec",alg:"ES256",...generateKeyPairSync("ec",{namedCurve:"prime256v1"})},
+ ];
+ const keys=pairs.map(({publicKey,kid,alg})=>({...publicKey.export({format:"jwk"}),kid,alg,use:"sig"}));
+ const server=createServer((_req,res)=>{res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({keys}));});
+ server.listen(0,"127.0.0.1");await new Promise(resolve=>server.once("listening",resolve));
+ try {
+  const client=jwks({jwksUri:`http://127.0.0.1:${server.address().port}/keys`,cache:false,rateLimit:false});
+  for(const pair of pairs) {
+   const key=await client.getSigningKey(pair.kid),data=Buffer.from("fixture-signed-payload");
+   const signature=sign("sha256",data,pair.privateKey);
+   assert.equal(verify("sha256",data,key.getPublicKey(),signature),true);
+   assert.equal(verify("sha256",Buffer.from("tampered"),key.getPublicKey(),signature),false);
+  }
+ } finally {await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});}
+});

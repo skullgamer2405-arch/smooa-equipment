@@ -4,6 +4,8 @@
 
 โค้ดมีตัวตรวจค่าก่อน build Production แต่การตรวจนี้ดูรูปแบบ/ความครบถ้วนเท่านั้น ไม่ได้ล็อกอินหรือยืนยันว่ารหัสลับใช้ได้จริง บัญชี อีเมล LINE และสิทธิ์บนคลาวด์ยังต้องตั้งและทดสอบตามด้านล่าง
 
+การแพ็ก API บน Vercel ใช้ `jwks-rsa@3.2.2` เฉพาะ dependency ของ Firebase Admin ผ่าน npm overrides เนื่องจากรุ่น 4 เรียก `jose@6` ด้วย CommonJS `require()` และทำให้ตัวโหลดของ Vercelหยุดด้วย `ERR_REQUIRE_ESM` คง Firebase Admin รุ่นเดิมและการตรวจ token/การเพิกถอน/สิทธิ์ผู้ดูแลทั้งหมดไว้ `npm run test:server` ปิดความสามารถ require(ESM) ของ Node เพื่อจับการถอยกลับของปัญหานี้ รวมการแปลงกุญแจ RSA/EC แล้วทดสอบบน staging จริงด้วย วิธีนี้เป็นมาตรการชั่วคราว: lockfile ใช้ `jose@4.15.9` ที่แก้ advisory เดิมแล้ว แต่สาย 4 ไม่อยู่ในรุ่นที่ upstream สนับสนุนปัจจุบัน ให้ทวน advisory ก่อนเปิดจริงและทุกครั้งที่อัปเดต SDK ลบ override เมื่อ dependency ต้นทางรองรับตัวโหลดของ Vercel และผ่านการตรวจชุดเดียวกันแล้ว
+
 > ส่วน Firebase Storage ในคู่มือ PDF เดิม 27 หน้า [`setup-guide-th.pdf`](../static/manuals/setup-guide-th.pdf) เลิกใช้กับการอัปโหลดภาพใหม่แล้ว ให้ทำตาม [คู่มือ Cloudinary](cloudinary-setup.md) โดยไม่ต้องเปิด Storage หรือ Blaze ตาม PDF ไฟล์ PDF เดิมคงไว้เป็นเอกสารอ้างอิง
 
 ## 1. เลือกโดเมนและทดสอบแยกก่อน

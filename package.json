@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run src --configLoader native --fsModuleCachePath .cache/vitest-modules",
     "test:e2e": "playwright test",
-    "test:server": "node --test tests/server.test.mjs tests/line.test.mjs tests/apps-script.test.mjs tests/release.test.mjs",
+    "test:server": "node --no-experimental-require-module --test tests/server.test.mjs tests/line.test.mjs tests/apps-script.test.mjs tests/release.test.mjs",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
     "omniroute:check": "node scripts/omniroute-check.mjs",
@@ -70,6 +70,11 @@
   "name": "smooa-equipment",
   "version": "1.0.0",
   "private": true,
+  "overrides": {
+    "firebase-admin": {
+      "jwks-rsa": "3.2.2"
+    }
+  },
   "engines": {
     "node": ">=24 <25"
   }
