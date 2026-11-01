@@ -462,3 +462,18 @@ test("Firebase JWKS dependency retrieves usable RSA and EC keys",async()=>{
   }
  } finally {await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});}
 });
+
+test("real mail composition preserves two admin envelopes and a single borrower envelope",async()=>{
+ const transport=nodemailer.createTransport({streamTransport:true,buffer:true,newline:"unix"}),compiled=[];
+ const f=fixture(),key=await createBookingService({db:f.db}).create(payload);
+ const service=createNotifications({db:f.db,env:{...f.env,SMTP_USER:"sender@example.invalid",ADMIN_NOTIFICATION_EMAIL:"first@example.invalid,second@example.invalid"},transport:{sendMail:async mail=>{
+  const result=await transport.sendMail(mail);compiled.push(result);return {accepted:result.envelope.to,rejected:[]};
+ }}});
+ assert.equal((await service.dispatch(key,"pending")).notification,"accepted");
+ assert.deepEqual(compiled[0].envelope.to,["first@example.invalid","second@example.invalid"]);
+ assert(Buffer.isBuffer(compiled[0].message));
+ assert(compiled[0].message.toString().includes("Content-Type: multipart/alternative"));
+ f.db.rows.set("bookings/"+key,{...f.db.rows.get("bookings/"+key),status:"approved"});
+ assert.equal((await service.dispatch(key,"approved")).notification,"accepted");
+ assert.deepEqual(compiled[1].envelope.to,[payload.applicantEmail]);
+});
