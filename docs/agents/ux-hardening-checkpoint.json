@@ -1,0 +1,30 @@
+{
+  "scope": "UX, private bookings, admin authorization, notifications and persistent image upload",
+  "branch": "preview/ui-vercel-services",
+  "checkedAt": "2026-10-26T09:05:56.186984+00:00",
+  "status": "implementation_verified_in_isolated_demo",
+  "checks": {
+    "typecheck": "passed",
+    "frontend_unit": "22 passed",
+    "server_fixture": "22 passed",
+    "production_build": "passed",
+    "browser_demo": "35 passed across routes, 320–1440px, accessibility",
+    "focused_extra": "off-page equipment approval passed",
+    "git_diff_check": "passed"
+  },
+  "externalNotVerified": [
+    "Firestore and Storage rules in an emulator or staging project",
+    "Firebase Admin live authentication and custom claims",
+    "LINE channel/OA and real message delivery",
+    "SMTP or Apps Script real delivery",
+    "Firebase Storage live upload/download",
+    "Gemini or Claude OmniRoute provider entitlement and tool calling"
+  ],
+  "productionDeployment": "not performed",
+  "previewDeployment": "pending source push/build",
+  "notes": [
+    "Firebase Hosting CI deploy is gated until same-origin API routing is verified",
+    "The existing user-installed skills and skills-lock changes were left untouched",
+    "Offline Docker sandbox denied external network and mounted source/dependencies readonly; tests used fixtures"
+  ]
+}

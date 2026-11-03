@@ -1,0 +1,65 @@
+{
+  "updatedAtUTC": "2026-10-25T08:36:14.367336+00:00",
+  "implementation": "primary agent; Gemini worker has not run",
+  "tasks": {
+    "foundation": "complete",
+    "borrower": "complete",
+    "admin": "complete",
+    "review": "passed fixture tests"
+  },
+  "checks": {
+    "npm_ci": "passed",
+    "typecheck": "passed",
+    "unit_tests": {
+      "passed": 7
+    },
+    "browser_suite": {
+      "passed": 18,
+      "mode": "dedicated forced demo, port 5174, external HTTP blocked"
+    },
+    "latest_focused_checks": [
+      "Preview API blocks all notifications/uploads/files",
+      "Preview build overrides conflicting frontend demo flag",
+      "Vercel app/api service schema resolves"
+    ],
+    "production_build": "passed, all chunks below 500kB",
+    "production_routes": "200 for legacy/clean routes and font; missing API/assets remain 404",
+    "font": "user-provided WOFF2 bytes preserved, Thai/Latin glyphs checked, browser face loaded at 400",
+    "isolated_server_tests": {
+      "passed": 4,
+      "SMTP": "mocked",
+      "credentials": "not inherited"
+    },
+    "vercel_cloud_build": "passed: Vite demo and Express backend"
+  },
+  "not_run": [
+    "live Firebase writes/authentication",
+    "real SMTP delivery",
+    "Google account login",
+    "Gemini Pro model or tool call"
+  ],
+  "omniroute": {
+    "gateway": "loopback only; unauthenticated /v1/models returned 401",
+    "readiness": "blocked_configuration; no endpoint key/provider/model/entitlement verified",
+    "next": "Securely connect a supported Google route or independently verified zero-extra-cost API; verify exact Gemini Pro and tool calling before handoff",
+    "resume": "npm run omniroute:check -- --dry-run"
+  },
+  "deployment": {
+    "status": "READY",
+    "environment": "preview",
+    "url": "https://smooa-equipment-jawmyxah5-smocra-69.vercel.app",
+    "id": "dpl_Hddz6Djj7SDywBgGUNT5YxXBihu8",
+    "rootDirectory": "repository root (Vercel null)",
+    "framework": "per-service; project override cleared",
+    "demo": "forced frontend build and guarded API",
+    "productionPromoted": false,
+    "remoteBrowserWalkthrough": "not run"
+  },
+  "optimization": {
+    "review": "docs/agents/optimization-review.md",
+    "application_source_lines_removed": 322,
+    "main_js_bytes_before": 368830,
+    "main_js_bytes_after": 216242,
+    "unused_packages_removed_including_transitive": 6
+  }
+}

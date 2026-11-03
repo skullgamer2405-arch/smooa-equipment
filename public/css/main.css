@@ -1,0 +1,17 @@
+/* Tailwind is loaded via its CDN script before this stylesheet in each page. */
+@import "./typeset.css";
+
+.typeset-docs {
+  --typeset-font-body: var(--font-geist);
+  --typeset-font-heading: var(--font-geist);
+  --typeset-font-mono: var(--font-geist-mono);
+  --typeset-size: 15px;
+  --typeset-leading: 1.75;
+  --typeset-flow: 1.25em;
+}
+
+/* Shared font variables; existing page typography stays unchanged. */
+.geist-fonts {
+  --font-geist: "Geist", sans-serif;
+  --font-geist-mono: "Geist Mono", monospace;
+}

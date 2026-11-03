@@ -1,0 +1,5 @@
+export const IMAGE_SOURCE_MAX_BYTES = 10 * 1024 * 1024;
+export const IMAGE_INGRESS_MAX_BYTES = 3 * 1024 * 1024;
+export const IMAGE_OUTPUT_MAX_BYTES = 10 * 1024 * 1024;
+export const IMAGE_MAX_DIMENSION = 4096;
+export const IMAGE_MAX_PIXELS = 16000000;
