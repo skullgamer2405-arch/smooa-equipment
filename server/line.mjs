@@ -54,7 +54,9 @@ export function notificationText(booking, kind) {
       ? "✅ คำขอยืมได้รับอนุมัติแล้ว"
       : kind === "before"
         ? "🔔 เตือนคืนอุปกรณ์พรุ่งนี้"
-        : "🔔 วันนี้ครบกำหนดคืนอุปกรณ์";
+        : kind === "overdue"
+          ? "🔔 เกินกำหนดคืนอุปกรณ์"
+          : "🔔 วันนี้ครบกำหนดคืนอุปกรณ์";
   return `${heading}\nอุปกรณ์: ${booking.equipmentName}\nรหัส: ${booking.assetCode}\nกำหนดคืน: ${day} (เวลาไทย)\nกรุณาส่งคืนตามจุดรับคืนที่ตกลงกับผู้ดูแล หากคืนแล้วแต่สถานะยังไม่ปรับ กรุณาติดต่อผู้ดูแล`;
 }
 
@@ -197,9 +199,11 @@ export function createLineService({
         line?.enabled &&
         line?.approved &&
         (job.kind === "approval" ||
-          (dueDay(b.endDate) === job.day &&
-            job.day ===
-              (job.kind === "before" ? nextDay(time) : bangkokDay(time))));
+          (job.kind === "overdue"
+            ? dueDay(b.endDate) < job.day && job.day === bangkokDay(time)
+            : dueDay(b.endDate) === job.day &&
+              ((job.kind === "before" && job.day === nextDay(time)) ||
+                (job.kind === "due" && job.day === bangkokDay(time)))));
       if (!valid) {
         tx.update(ref, { status: "skipped", leaseUntil: null });
         return null;
@@ -280,8 +284,7 @@ export function createLineService({
     const time = now(),
       today = bangkokDay(time),
       tomorrow = nextDay(time);
-    const start = new Date(today + "T00:00:00+07:00"),
-      end = new Date(+new Date(tomorrow + "T00:00:00+07:00") + 86400000);
+    const end = new Date(+new Date(tomorrow + "T00:00:00+07:00") + 86400000);
     let cursor,
       scanned = 0,
       queued = 0;
@@ -290,7 +293,6 @@ export function createLineService({
       let q = db
         .collection("bookings")
         .where("status", "==", "approved")
-        .where("endDate", ">=", start)
         .where("endDate", "<", end)
         .orderBy("endDate")
         .limit(100);
@@ -308,8 +310,9 @@ export function createLineService({
         scanned++;
         const recipient = await recipientRef(booking.id).get();
         if (!recipient.data()?.approved || !recipient.data()?.enabled) continue;
-        const day = dueDay(booking.data().endDate),
-          kind = day === tomorrow ? "before" : "due";
+        const due = dueDay(booking.data().endDate),
+          kind = due < today ? "overdue" : due === tomorrow ? "before" : "due",
+          day = kind === "overdue" ? today : due;
         const ref = jobs.doc(jobId(booking.id, kind, day));
         await db.runTransaction(async (tx) => {
           const existing = await tx.get(ref);

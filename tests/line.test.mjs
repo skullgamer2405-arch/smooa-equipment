@@ -206,6 +206,71 @@ test("reminders use Bangkok dates, send before/due once and stop after return or
   assert.equal(g.pushes.length, before);
   assert([...g.db.rows.values()].some((row) => row.status === "needs_review"));
 });
+test("overdue reminders repeat once per Bangkok day until the booking is returned", async () => {
+  const f = fixture(), key = await f.service.createBooking(f.body);
+  await f.service.approve(key, "", "admin-fixture");
+  f.setTime("2035-06-12T02:13:00Z");
+  assert.equal((await f.service.reminders()).accepted, 1);
+  assert.equal(f.pushes.length, 2);
+  assert.match(f.pushes[1].payload.messages[0].text, /เกินกำหนด/);
+  assert.match(f.pushes[1].payload.messages[0].text, /2035-06-11/);
+  const firstKey = f.pushes[1].key;
+  f.setTime("2035-06-12T16:59:59Z");
+  assert.equal((await f.service.reminders()).accepted, 0);
+  assert.equal(f.pushes.length, 2);
+  f.setTime("2035-06-13T02:13:00Z");
+  assert.equal((await f.service.reminders()).accepted, 1);
+  assert.equal(f.pushes.length, 3);
+  assert.notEqual(f.pushes[2].key, firstKey);
+  f.db.rows.get("bookings/" + key).status = "returned";
+  f.setTime("2035-06-14T02:13:00Z");
+  await f.service.reminders();
+  assert.equal(f.pushes.length, 3);
+});
+
+test("overdue jobs wait until 09:00 and yesterday's failed job is skipped next day", async () => {
+  const f = fixture(), key = await f.service.createBooking(f.body);
+  await f.service.approve(key, "", "admin-fixture");
+  f.setTime("2035-06-12T01:59:00Z");
+  const early = await f.service.reminders();
+  assert.equal(early.queued, 1);
+  assert.equal(early.accepted, 0);
+  assert.equal(f.pushes.length, 1);
+  f.setTime("2035-06-12T02:00:00Z");
+  f.setResponse(500);
+  await f.service.reminders();
+  assert.equal(f.pushes.length, 2);
+  const yesterdayKey = f.pushes[1].key;
+  f.setTime("2035-06-12T17:00:00Z");
+  f.setResponse(200);
+  await f.service.reminders();
+  assert.equal(f.pushes.length, 2);
+  f.setTime("2035-06-13T02:00:00Z");
+  assert.equal((await f.service.reminders()).accepted, 1);
+  assert.equal(f.pushes.length, 3);
+  assert.notEqual(f.pushes[2].key, yesterdayKey);
+  assert.equal(f.db.rows.get(`lineNotifications/${key}_overdue_2035-06-12`).status, "skipped");
+});
+
+test("queued overdue reminders stop after return, withdrawn consent or an extended due date", async () => {
+  for (const change of ["return", "disable", "unlink", "extend"]) {
+    const f = fixture(), key = await f.service.createBooking(f.body);
+    await f.service.approve(key, "", "admin-fixture");
+    f.setTime("2035-06-12T02:00:00Z");
+    f.setResponse(429);
+    await f.service.reminders();
+    assert.equal(f.pushes.length, 2, change);
+    if (change === "return") f.db.rows.get("bookings/" + key).status = "returned";
+    if (change === "disable") f.db.rows.get("lineBookingRecipients/" + key).enabled = false;
+    if (change === "unlink") f.db.rows.delete("lineBookingRecipients/" + key);
+    if (change === "extend") f.db.rows.get("bookings/" + key).endDate = new Date("2035-06-15T00:00:00+07:00");
+    f.setResponse(200);
+    await f.service.reminders();
+    assert.equal(f.pushes.length, 2, change);
+    assert.equal(f.db.rows.get(`lineNotifications/${key}_overdue_2035-06-12`).status, "skipped", change);
+  }
+});
+
 test("ambiguous pushes stop before the 24-hour LINE deduplication expiry", async () => {
   const f = fixture(),
     key = await f.service.createBooking(f.body);
