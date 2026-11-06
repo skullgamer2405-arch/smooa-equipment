@@ -1,3 +1,4 @@
+import { availableQuantity, totalQuantity } from "../../shared/inventory.js";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -156,6 +157,7 @@ export function EquipmentCard({ equipment }: { equipment: Equipment }) {
         </div>
         <h3 className="text-lg mb-2">{equipment.title}</h3>
         <Status value={equipment.status} />
+        <p className="mt-2 text-primary tabular-nums">เหลือ {availableQuantity(equipment)} จาก {totalQuantity(equipment)} ชิ้น</p>
         <p className="muted mt-3 line-clamp-2 min-h-12 text-sm">
           {equipment.description ||
             "สอบถามรายละเอียดเพิ่มเติมจากผู้ดูแลก่อนยืม"}

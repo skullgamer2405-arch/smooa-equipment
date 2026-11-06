@@ -5,6 +5,8 @@ import { bookingSchema, bangkokDay } from "../shared/booking-schema.js";
 import { ApiError, adminIdentity } from "./http.mjs";
 import { publicBooking } from "../shared/calendar.js";
 import { submissionLimit } from "./submission-limit.mjs";
+import { availableQuantity, totalQuantity, bookingQuantity, remainingQuantity, stockFields, fingerprintFields } from "../shared/inventory.js";
+import { activeLoans, loanTotal } from "./inventory.mjs";
 const id = z.string().regex(/^[\p{L}\p{N}_-]{1,150}$/u);
 const requestSchema = z.object({
   idToken: z.string().min(1).max(8192),
@@ -57,7 +59,7 @@ export function notificationText(booking, kind) {
         : kind === "overdue"
           ? "🔔 เกินกำหนดคืนอุปกรณ์"
           : "🔔 วันนี้ครบกำหนดคืนอุปกรณ์";
-  return `${heading}\nอุปกรณ์: ${booking.equipmentName}\nรหัส: ${booking.assetCode}\nกำหนดคืน: ${day} (เวลาไทย)\nกรุณาส่งคืนตามจุดรับคืนที่ตกลงกับผู้ดูแล หากคืนแล้วแต่สถานะยังไม่ปรับ กรุณาติดต่อผู้ดูแล`;
+  return `${heading}\nอุปกรณ์: ${booking.equipmentName}\nรหัส: ${booking.assetCode}\nจำนวน: ${bookingQuantity(booking)} ชิ้น\nค้างคืน: ${remainingQuantity(booking)} ชิ้น\nกำหนดคืน: ${day} (เวลาไทย)\nกรุณาส่งคืนตามจุดรับคืนที่ตกลงกับผู้ดูแล หากคืนแล้วแต่สถานะยังไม่ปรับ กรุณาติดต่อผู้ดูแล`;
 }
 
 // All LINE identity, delivery state and leases are private server-side collections.
@@ -91,7 +93,7 @@ export function createLineService({
     const bookingId = "line-" + hash(userId + ":" + requestId);
     const ref = bookingRef(bookingId),
       recipient = recipientRef(bookingId);
-    const fingerprint = hash(JSON.stringify({ ...fields, equipmentId }));
+    const fingerprint = hash(JSON.stringify({ ...fingerprintFields(fields), equipmentId }));
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(ref);
       const previous = await tx.get(recipient);
@@ -110,6 +112,7 @@ export function createLineService({
       if (!equipment.exists || equipment.data().status !== "available")
         throw new ApiError(409, "อุปกรณ์ไม่พร้อมให้ยืม");
       const item = equipment.data();
+      if (fields.quantity > availableQuantity(item)) throw new ApiError(409, "จำนวนที่ขอยืมเกินของที่เหลือ กรุณาตรวจจำนวนอีกครั้ง");
       tx.create(ref, {
         ...fields,
         equipmentId,
@@ -150,13 +153,19 @@ export function createLineService({
         item = await tx.get(eq);
       if (!item.exists || item.data().status !== "available")
         throw new ApiError(409, "อุปกรณ์ไม่พร้อมให้ยืม");
+      const quantity = totalQuantity(item.data());
+      const active = await activeLoans(tx, db, b.equipmentId);
+      if (active.length >= 100) throw new ApiError(409, "อุปกรณ์นี้มีคำขอที่ยังไม่คืนครบ 100 รายการ กรุณารับคืนบางรายการก่อนอนุมัติเพิ่ม");
+      const borrowed = loanTotal(active);
+      const requested = bookingQuantity(b);
+      if (requested > quantity - borrowed) throw new ApiError(409, "อุปกรณ์เหลือไม่พอสำหรับคำขอนี้ กรุณาตรวจรายการที่อนุมัติแล้ว");
       tx.update(ref, {
         status: "approved",
         adminNote: note,
         approvedAt: now(),
         approvedBy: adminUid,
       });
-      tx.update(eq, { status: "unavailable", returnDate: b.endDate });
+      tx.update(eq, { ...stockFields(quantity, borrowed + requested, item.data().status), returnDate: b.endDate });
       tx.set(db.collection("publicCalendar").doc(bookingId), publicBooking(bookingId, { ...b, status: "approved" }));
       if (linked) {
         tx.update(recipient, { approved: true });

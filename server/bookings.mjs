@@ -4,6 +4,8 @@ import { bookingSchema, validDay } from "../shared/booking-schema.js";
 import { publicBooking } from "../shared/calendar.js";
 import { ApiError, documentId } from "./http.mjs";
 import { submissionLimit } from "./submission-limit.mjs";
+import { availableQuantity, totalQuantity, stockFields, fingerprintFields, quantitySchema, bookingQuantity, remainingQuantity, returnedQuantity } from "../shared/inventory.js";
+import { activeLoans, loanTotal } from "./inventory.mjs";
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 export function createBookingService({ db, now = () => new Date() }) {
@@ -12,7 +14,7 @@ export function createBookingService({ db, now = () => new Date() }) {
     const { terms: _, ...fields } = bookingSchema.parse(body);
     const bookingId = "web-" + digest(requestId);
     const ref = db.collection("bookings").doc(bookingId);
-    const fingerprint = digest(JSON.stringify({ ...fields, equipmentId }));
+    const fingerprint = digest(JSON.stringify({ ...fingerprintFields(fields), equipmentId }));
     const receipt = db.collection("bookingReceipts").doc(bookingId);
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(ref), previous = await tx.get(receipt);
@@ -24,6 +26,7 @@ export function createBookingService({ db, now = () => new Date() }) {
       const item = await tx.get(db.collection("equipment").doc(equipmentId));
       if (!item.exists || item.data().status !== "available") throw new ApiError(409, "อุปกรณ์ไม่พร้อมให้ยืม กรุณาเลือกใหม่");
       const equipment = item.data();
+      if (fields.quantity > availableQuantity(equipment)) throw new ApiError(409, "จำนวนที่ขอยืมเกินของที่เหลือ กรุณาตรวจจำนวนอีกครั้ง");
       tx.create(ref, { ...fields, equipmentId, equipmentName: z.string().min(1).max(200).parse(equipment.title), assetCode: z.string().min(1).max(50).parse(equipment.assetCode), startDate: new Date(fields.startDate + "T00:00:00+07:00"), endDate: new Date(fields.endDate + "T00:00:00+07:00"), status: "pending", createdAt: now() });
       tx.create(receipt, { fingerprint });
       tx.set(quota.ref, quota.value);
@@ -38,20 +41,41 @@ export function createBookingService({ db, now = () => new Date() }) {
       tx.update(ref, { status: "rejected", adminNote: z.string().max(1000).parse(note), rejectedAt: now(), decidedBy: uid });
     });
   }
-  async function returnItem(equipmentId, bookingId) {
+  async function returnItem(equipmentId, bookingId, options = {}) {
+    if (!bookingId) throw new ApiError(400, "กรุณาเลือกรับคืนจากคำขอของผู้ยืม แล้วระบุจำนวนที่ได้รับจริง");
+    documentId.parse(bookingId);
     const eq = db.collection("equipment").doc(documentId.parse(equipmentId));
+    const partial = options.quantity !== undefined;
+    const quantity = partial ? quantitySchema.parse(options.quantity) : undefined;
+    const receipt = partial ? db.collection("equipmentReturns").doc(z.string().uuid().parse(options.requestId)) : null;
     await db.runTransaction(async (tx) => {
+      if (receipt) {
+        const previous = await tx.get(receipt);
+        if (previous.exists) {
+          const old = previous.data();
+          if (old.equipmentId !== equipmentId || old.bookingId !== bookingId || old.quantity !== quantity) throw new ApiError(409, "รายการรับคืนซ้ำมีข้อมูลต่างกัน กรุณาตรวจรายการล่าสุด");
+          return;
+        }
+      }
       const item = await tx.get(eq);
       if (!item.exists) throw new ApiError(404, "ไม่พบอุปกรณ์");
-      const active = await tx.get(db.collection("bookings").where("equipmentId", "==", equipmentId).where("status", "==", "approved").limit(100));
-      if (active.docs.length >= 100) throw new ApiError(409, "รายการรับคืนมากเกินไป กรุณาตรวจข้อมูลกับผู้ดูแล");
-      if (bookingId && !active.docs.some((d) => d.id === bookingId)) throw new ApiError(409, "รายการนี้รับคืนแล้วหรือไม่ได้อยู่ระหว่างยืม");
-      const selected = bookingId ? active.docs.filter((d) => d.id === bookingId) : active.docs;
+      const active = await activeLoans(tx, db, equipmentId);
+      if (!active.some((d) => d.id === bookingId)) throw new ApiError(409, "รายการนี้รับคืนแล้วหรือไม่ได้อยู่ระหว่างยืม");
+      const selected = active.filter((d) => d.id === bookingId);
+      const received = partial ? quantity : loanTotal(selected);
+      if (partial && quantity > remainingQuantity(selected[0].data())) throw new ApiError(409, "จำนวนที่รับคืนเกินจำนวนค้างคืน กรุณาตรวจรายการล่าสุด");
+      const borrowed = loanTotal(active) - received;
       for (const snap of selected) {
-        tx.update(db.collection("bookings").doc(snap.id), { status: "returned", returnedAt: now() });
-        tx.delete(db.collection("publicCalendar").doc(snap.id));
+        const booking = snap.data();
+        const returned = partial ? returnedQuantity(booking) + quantity : bookingQuantity(booking);
+        const complete = returned === bookingQuantity(booking);
+        const changes = { status: complete ? "returned" : "approved", returnedQuantity: returned, lastReturnedAt: now(), ...(complete ? { returnedAt: now() } : {}) };
+        tx.update(db.collection("bookings").doc(snap.id), changes);
+        if (complete) tx.delete(db.collection("publicCalendar").doc(snap.id));
+        else tx.set(db.collection("publicCalendar").doc(snap.id), publicBooking(snap.id, { ...booking, ...changes }));
       }
-      if (!bookingId || active.docs.length === 1) tx.update(eq, { status: "available", returnDate: null });
+      tx.update(eq, { ...stockFields(totalQuantity(item.data()), borrowed, item.data().status), ...(borrowed === 0 ? { returnDate: null } : {}) });
+      if (receipt) tx.create(receipt, { equipmentId, bookingId, quantity, receivedAt: now() });
     });
   }
   async function calendar({ from, to, equipmentId = "", after = "" }) {
@@ -72,7 +96,7 @@ export function createBookingService({ db, now = () => new Date() }) {
   return { create, reject, returnItem, calendar };
 }
 function publicFields(value) {
-  const { equipmentId, equipmentName, assetCode, startDay, endDay, status } = value;
-  return { equipmentId, equipmentName, assetCode, startDay, endDay, status };
+  const { equipmentId, equipmentName, assetCode, startDay, endDay, status, quantity = 1, returnedQuantity = 0 } = value;
+  return { equipmentId, equipmentName, assetCode, startDay, endDay, status, quantity, returnedQuantity };
 }
 export { publicBooking };

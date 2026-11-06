@@ -3,7 +3,9 @@ import { bookingReceipt } from "./booking-receipt";
 
 describe("booking receipt from navigation or session storage", () => {
   it("keeps only receipt fields and valid dates", () => {
-    expect(bookingReceipt({bookingId:"example",startDate:"2035-06-10",endDate:"2035-06-11",privateData:"ignore"})).toEqual({bookingId:"example",startDate:"2035-06-10",endDate:"2035-06-11",lineRequested:false});
+    expect(bookingReceipt({bookingId:"example",startDate:"2035-06-10",endDate:"2035-06-11",privateData:"ignore"})).toEqual({bookingId:"example",startDate:"2035-06-10",endDate:"2035-06-11",lineRequested:false,quantity:1});
+    expect(bookingReceipt({bookingId:"example",quantity:3})?.quantity).toBe(3);
+    expect(bookingReceipt({bookingId:"example",quantity:-1})).toBeNull();
   });
   it("discards malformed receipt data instead of crashing the success route", () => {
     for (const value of [null, [], {bookingId:42}, {bookingId:"example",startDate:"not-a-date",endDate:"2035-06-11"}, {bookingId:"example",startDate:"2035-02-30"}, {bookingId:"example",lineRequested:"true"}]) {

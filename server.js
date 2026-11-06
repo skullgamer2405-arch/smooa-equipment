@@ -9,6 +9,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { createLineRouter, createLineService } from "./server/line.mjs";
 import { createBookingService } from "./server/bookings.mjs";
+import { createInventoryService } from "./server/inventory.mjs";
 import { createNotifications } from "./server/notifications.mjs";
 import { IMAGE_INGRESS_MAX_BYTES } from "./shared/image-limits.js";
 import { storeImage } from "./server/images.mjs";
@@ -74,6 +75,9 @@ export function createApp({ env = process.env, getDb = () => { firebase(env); re
     res.json(Object.fromEntries(results));
   }));
   app.use("/api/admin", guard);
+  app.post("/api/admin/equipment", handle(async (req, res) => res.json({ success: true, id: await createInventoryService({ db: getDb(), now }).save(req.body) })));
+  app.put("/api/admin/equipment/:id", handle(async (req, res) => res.json({ success: true, id: await createInventoryService({ db: getDb(), now }).save(req.body, documentId.parse(req.params.id)) })));
+  app.delete("/api/admin/equipment/:id", handle(async (req, res) => { await createInventoryService({ db: getDb(), now }).remove(req.params.id); res.json({ success: true }); }));
   app.get("/api/admin/booking-summary", handle(async (_req, res) => {
     const collection = getDb().collection("bookings"), midnight = new Date(bangkokDay(now()) + "T00:00:00+07:00");
     const queries = { pending: collection.where("status", "==", "pending"), approved: collection.where("status", "==", "approved"), due: collection.where("status", "==", "approved").where("endDate", ">=", midnight).where("endDate", "<", new Date(+midnight + 86400000)), overdue: collection.where("status", "==", "approved").where("endDate", "<", midnight) };
@@ -90,7 +94,7 @@ export function createApp({ env = process.env, getDb = () => { firebase(env); re
     const email = await notice(id, action);
     res.json({ success: true, notification, emailNotification: email.notification });
   }));
-  app.post("/api/admin/equipment/:id/return", handle(async (req, res) => { await bookings().returnItem(documentId.parse(req.params.id), req.body.bookingId ? documentId.parse(req.body.bookingId) : undefined); res.json({ success: true }); }));
+  app.post("/api/admin/equipment/:id/return", handle(async (req, res) => { await bookings().returnItem(documentId.parse(req.params.id), req.body.bookingId ? documentId.parse(req.body.bookingId) : undefined, { quantity: req.body.quantity, requestId: req.body.requestId }); res.json({ success: true }); }));
   app.get("/api/admin/notification-settings", handle(async (_req, res) => res.json(await notifications().settings())));
   app.put("/api/admin/notification-settings", handle(async (req, res) => { await notifications().configure(req.body.webhookUrl); res.json({ success: true }); }));
   app.post("/api/admin/notifications/test", handle(async (_req, res) => res.json(await notifications().test())));

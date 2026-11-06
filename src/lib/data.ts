@@ -6,13 +6,11 @@ import {
   orderBy,
   startAfter,
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   query,
   serverTimestamp,
   Timestamp,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import {
@@ -32,6 +30,7 @@ import type {
 } from "./types";
 import { asDate, inputDate } from "./utils";
 import { lineSession } from "./line";
+import { availableQuantity, totalQuantity, bookingQuantity, remainingQuantity, returnedQuantity, stockFields, quantitySchema } from "../../shared/inventory.js";
 export const demo = import.meta.env.VITE_DEMO_MODE === "true";
 export const demoAccount = {
   email: "admin@example.invalid",
@@ -180,7 +179,7 @@ export async function bookingSummary(): Promise<Record<string, number>> {
   return apiRequest("/api/admin/booking-summary", {}, true);
 }
 export async function publicCalendar(from: string, to: string, equipmentId = "", cursor = ""): Promise<{ items: import("./types").PublicEvent[]; nextCursor: string | null }> {
-  if (demo) return { items: state.bookings.filter(b => b.status === "approved" && (!equipmentId || b.equipmentId === equipmentId)).map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), status: b.status })).filter(b => b.endDay >= from && b.startDay <= to), nextCursor: null };
+  if (demo) return { items: state.bookings.filter(b => b.status === "approved" && (!equipmentId || b.equipmentId === equipmentId)).map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, quantity: bookingQuantity(b), returnedQuantity: returnedQuantity(b), startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), status: b.status })).filter(b => b.endDay >= from && b.startDay <= to), nextCursor: null };
   return apiRequest("/api/public/calendar?" + new URLSearchParams({ from, to, equipmentId, after: cursor }));
 }
 export async function login(email: string, password: string) {
@@ -209,6 +208,8 @@ export async function createBooking(data: Omit<Booking, "id" | "createdAt">, req
   if (demo) {
     const previous = state.bookings.find(b => b.requestId === requestId);
     if (previous) return previous.id;
+    const item = state.equipment.find(e => e.id === data.equipmentId);
+    if (!item || bookingQuantity(data) > availableQuantity(item)) throw Error("จำนวนที่ขอยืมเกินของที่เหลือ กรุณาตรวจจำนวนอีกครั้ง");
     const id = crypto.randomUUID();
     state.bookings.unshift({ ...data, id, requestId, lineLinked, createdAt: new Date().toISOString() });
     changed(); return id;
@@ -218,6 +219,10 @@ export async function createBooking(data: Omit<Booking, "id" | "createdAt">, req
 }
 export async function saveEquipment(data: Omit<Equipment, "id">, id?: string) {
   if (demo) {
+    const quantity = quantitySchema.parse(data.quantity ?? 1);
+    const borrowed = state.bookings.filter(b => b.equipmentId === id && b.status === "approved").reduce((sum, b) => sum + remainingQuantity(b), 0);
+    if (quantity < borrowed) throw Error(`ยังมีอุปกรณ์ที่ไม่คืน ${borrowed} ชิ้น จำนวนทั้งหมดต้องไม่น้อยกว่านี้`);
+    data = { ...data, ...stockFields(quantity, borrowed, data.status) };
     if (id) {
       const i = state.equipment.findIndex((x) => x.id === id);
       state.equipment[i] = { ...data, id };
@@ -230,27 +235,16 @@ export async function saveEquipment(data: Omit<Equipment, "id">, id?: string) {
     changed();
     return;
   }
-  const { db } = await import("./firebase");
-  if (id)
-    await updateDoc(doc(db, "equipment", id), {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
-  else
-    await addDoc(collection(db, "equipment"), {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  await apiRequest("/api/admin/equipment" + (id ? "/" + encodeURIComponent(id) : ""), { method: id ? "PUT" : "POST", body: JSON.stringify(data) }, true);
 }
 export async function removeEquipment(id: string) {
   if (demo) {
+    if (state.bookings.some(b => b.equipmentId === id && b.status === "approved")) throw Error("อุปกรณ์นี้ยังมีผู้ยืม กรุณารับคืนให้ครบก่อนลบ");
     state.equipment = state.equipment.filter((x) => x.id !== id);
     changed();
     return;
   }
-  const { db } = await import("./firebase");
-  await deleteDoc(doc(db, "equipment", id));
+  await apiRequest("/api/admin/equipment/" + encodeURIComponent(id), { method: "DELETE" }, true);
 }
 export async function decideBooking(
   id: string,
@@ -263,10 +257,12 @@ export async function decideBooking(
     const eq = state.equipment.find((x) => x.id === b.equipmentId);
     if (action === "approved" && (!eq || eq.status !== "available"))
       throw Error("อุปกรณ์ไม่พร้อมให้ยืม");
+    const borrowed = state.bookings.filter(row => row.equipmentId === b.equipmentId && row.status === "approved").reduce((sum, row) => sum + remainingQuantity(row), 0);
+    if (action === "approved" && eq && bookingQuantity(b) > totalQuantity(eq) - borrowed) throw Error("อุปกรณ์เหลือไม่พอสำหรับคำขอนี้ กรุณาตรวจรายการที่อนุมัติแล้ว");
     b.status = action;
     b.adminNote = note;
     if (action === "approved" && eq) {
-      eq.status = "unavailable";
+      Object.assign(eq, stockFields(totalQuantity(eq), borrowed + bookingQuantity(b), eq.status));
       eq.returnDate = b.endDate;
     }
     changed();
@@ -274,17 +270,33 @@ export async function decideBooking(
   }
   return apiRequest<{ notification?: string }>(`/api/admin/bookings/${encodeURIComponent(id)}/decision`, { method: "POST", body: JSON.stringify({ action, note }) }, true);
 }
-export async function returnEquipment(id: string, bookingId?: string) {
+const demoReturns = new Map<string, string>();
+export async function returnEquipment(id: string, bookingId?: string, quantity?: number, requestId?: string) {
+  if (!bookingId) throw Error("กรุณาเลือกรับคืนจากคำขอของผู้ยืม แล้วระบุจำนวนที่ได้รับจริง");
   if (demo) {
+    const fingerprint = JSON.stringify({ id, bookingId, quantity });
+    if (quantity !== undefined) {
+      quantitySchema.parse(quantity);
+      if (!requestId) throw Error("กรุณาเลือกคำขอที่ต้องการรับคืน");
+      if (demoReturns.has(requestId)) {
+        if (demoReturns.get(requestId) !== fingerprint) throw Error("รายการรับคืนซ้ำมีข้อมูลต่างกัน");
+        return;
+      }
+    }
     const selected = state.bookings.filter(b => b.equipmentId === id && b.status === "approved" && (!bookingId || b.id === bookingId));
-    selected.forEach(b => { b.status = "returned"; });
-    if (!state.bookings.some(b => b.equipmentId === id && b.status === "approved")) { const item = state.equipment.find(e => e.id === id); if (item) item.status = "available"; }
+    if (bookingId && !selected.length) throw Error("รายการนี้รับคืนแล้วหรือไม่ได้อยู่ระหว่างยืม");
+    if (quantity !== undefined && quantity > remainingQuantity(selected[0])) throw Error("จำนวนที่รับคืนเกินจำนวนค้างคืน กรุณาตรวจรายการล่าสุด");
+    selected.forEach(b => { b.returnedQuantity = quantity === undefined ? bookingQuantity(b) : returnedQuantity(b) + quantity; b.status = remainingQuantity(b) === 0 ? "returned" : "approved"; });
+    const borrowed = state.bookings.filter(b => b.equipmentId === id && b.status === "approved").reduce((sum, b) => sum + remainingQuantity(b), 0);
+    const item = state.equipment.find(e => e.id === id);
+    if (item) Object.assign(item, stockFields(totalQuantity(item), borrowed, item.status));
+    if (requestId) demoReturns.set(requestId, fingerprint);
     changed(); return;
   }
-  await apiRequest(`/api/admin/equipment/${encodeURIComponent(id)}/return`, { method: "POST", body: JSON.stringify({ bookingId }) }, true);
+  await apiRequest(`/api/admin/equipment/${encodeURIComponent(id)}/return`, { method: "POST", body: JSON.stringify({ bookingId, quantity, requestId }) }, true);
 }
 export async function myBookings(cursor = ""): Promise<{ items: MyBooking[]; nextCursor: string | null }> {
-  if (demo) return { items: state.bookings.filter(b => b.lineLinked || b.id === "booking-sample").map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, status: b.status, startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), activityName: b.activityName, adminNote: b.adminNote || "", createdAt: asDate(b.createdAt)!.toISOString() })), nextCursor: null };
+  if (demo) return { items: state.bookings.filter(b => b.lineLinked || b.id === "booking-sample").map(b => ({ id: b.id, equipmentId: b.equipmentId, equipmentName: b.equipmentName, assetCode: b.assetCode, quantity: bookingQuantity(b), returnedQuantity: returnedQuantity(b), status: b.status, startDay: inputDate(asDate(b.startDate)!), endDay: inputDate(asDate(b.endDate)!), activityName: b.activityName, adminNote: b.adminNote || "", createdAt: asDate(b.createdAt)!.toISOString() })), nextCursor: null };
   const session = await lineSession();
   if (!session) throw Error("กรุณาเปิดเว็บจาก Rich Menu ของ SMO OA เพื่อยืนยันบัญชี");
   return apiRequest("/api/line/my-bookings?cursor=" + encodeURIComponent(cursor), { headers: { Authorization: "Bearer " + session.idToken } });

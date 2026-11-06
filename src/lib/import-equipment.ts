@@ -1,3 +1,4 @@
+import { quantitySchema } from "../../shared/inventory.js";
 import type { Equipment } from "./types";
 export type ImportRow = {
   data: Omit<Equipment, "id">;
@@ -20,6 +21,9 @@ export function mapRows(rows: Record<string, unknown>[]): ImportRow[] {
       ).trim(),
     );
     const [title, assetCode, category, imageUrl, description] = fields;
+    const rawQuantity = row.quantity ?? row["จำนวน"] ?? row["จำนวนทั้งหมด"] ?? "";
+    const quantity = typeof rawQuantity === "number" ? rawQuantity : typeof rawQuantity === "string" && rawQuantity.trim() ? Number(rawQuantity.trim()) : rawQuantity === "" ? 1 : NaN;
+    const count = quantitySchema.safeParse(quantity);
     const error =
       !title || !assetCode
         ? "ชื่อและรหัสอุปกรณ์จำเป็น"
@@ -27,10 +31,11 @@ export function mapRows(rows: Record<string, unknown>[]): ImportRow[] {
           ? "ชื่อหรือรหัสยาวเกินกำหนด"
           : imageUrl && !/^https?:\/\//.test(imageUrl)
             ? "URL รูปภาพไม่ถูกต้อง"
-            : "";
+            : !count.success ? "จำนวนต้องเป็นจำนวนเต็ม 1–10,000 ชิ้น" : "";
     return {
       data: {
         title,
+        quantity,
         assetCode,
         category: category || "ครุภัณฑ์",
         imageUrl,
@@ -70,6 +75,7 @@ export async function readImport(file: File) {
           หมวดหมู่: p[2] || "",
           "URL รูปภาพ": p[3] || "",
           รายละเอียด: p[4] || "",
+          จำนวน: p[5] || "",
         }));
     }
   } else if (/\.(xlsx|xls)$/i.test(file.name)) {

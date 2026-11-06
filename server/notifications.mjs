@@ -1,3 +1,4 @@
+import { bookingQuantity } from "../shared/inventory.js";
 import { createHmac, randomUUID } from "node:crypto";
 import { ApiError, documentId } from "./http.mjs";
 import { asDay } from "../shared/calendar.js";
@@ -59,8 +60,8 @@ export function createNotifications({ db, transport, env = process.env, request 
     const days = booking.startDate && booking.endDate ? `<p>วันยืม–คืน (เวลาไทย): ${escapeHtml(asDay(booking.startDate))} – ${escapeHtml(asDay(booking.endDate))}</p>` : "";
     const action = kind === "pending" && config.adminUrl
       ? `<p><a href="${escapeHtml(config.adminUrl)}">เปิดหน้าผู้ดูแลเพื่อตรวจคำขอ</a></p><p>เข้าสู่ระบบก่อนค้นหารหัสคำขอด้านบน การเปิดลิงก์ยังไม่อนุมัติคำขอ</p>` : "";
-    const html = `<html lang="th"><body style="font-family:Tahoma,sans-serif;color:#173459"><h1>${label}</h1><p>อุปกรณ์: ${escapeHtml(booking.equipmentName)}</p><p>รหัส: ${escapeHtml(booking.assetCode)}</p><p>ผู้ยืม: ${escapeHtml(booking.fullName)}</p><p>กิจกรรม: ${escapeHtml(booking.activityName)}</p>${days}<p>หมายเหตุ: ${escapeHtml(booking.adminNote || "—")}</p><p>รหัสคำขอ: ${escapeHtml(booking.bookingId)}</p>${action}<p>ดูรายละเอียดจากเว็บ SMO OA หรือติดต่อผู้ดูแลตามช่องทางที่ตกลงกัน</p></body></html>`;
-    const text = [label, `อุปกรณ์: ${booking.equipmentName}`, `รหัส: ${booking.assetCode || "—"}`, `ผู้ยืม: ${booking.fullName}`, `กิจกรรม: ${booking.activityName || "—"}`, booking.startDate && booking.endDate ? `วันยืม–คืน (เวลาไทย): ${asDay(booking.startDate)} – ${asDay(booking.endDate)}` : "", `หมายเหตุ: ${booking.adminNote || "—"}`, `รหัสคำขอ: ${booking.bookingId}`, kind === "pending" && config.adminUrl ? `ตรวจคำขอ (ต้องเข้าสู่ระบบ): ${config.adminUrl}` : ""].filter(Boolean).join("\n");
+    const html = `<html lang="th"><body style="font-family:Tahoma,sans-serif;color:#173459"><h1>${label}</h1><p>อุปกรณ์: ${escapeHtml(booking.equipmentName)}</p><p>รหัส: ${escapeHtml(booking.assetCode)}</p><p>จำนวน: ${bookingQuantity(booking)} ชิ้น</p><p>ผู้ยืม: ${escapeHtml(booking.fullName)}</p><p>กิจกรรม: ${escapeHtml(booking.activityName)}</p>${days}<p>หมายเหตุ: ${escapeHtml(booking.adminNote || "—")}</p><p>รหัสคำขอ: ${escapeHtml(booking.bookingId)}</p>${action}<p>ดูรายละเอียดจากเว็บ SMO OA หรือติดต่อผู้ดูแลตามช่องทางที่ตกลงกัน</p></body></html>`;
+    const text = [label, `อุปกรณ์: ${booking.equipmentName}`, `รหัส: ${booking.assetCode || "—"}`, `จำนวน: ${bookingQuantity(booking)} ชิ้น`, `ผู้ยืม: ${booking.fullName}`, `กิจกรรม: ${booking.activityName || "—"}`, booking.startDate && booking.endDate ? `วันยืม–คืน (เวลาไทย): ${asDay(booking.startDate)} – ${asDay(booking.endDate)}` : "", `หมายเหตุ: ${booking.adminNote || "—"}`, `รหัสคำขอ: ${booking.bookingId}`, kind === "pending" && config.adminUrl ? `ตรวจคำขอ (ต้องเข้าสู่ระบบ): ${config.adminUrl}` : ""].filter(Boolean).join("\n");
     try {
       if (config.webhookUrl) {
         if (!validWebhook(config.webhookUrl) || !config.webhookReady) throw Error("WEBHOOK_NOT_CONFIGURED");

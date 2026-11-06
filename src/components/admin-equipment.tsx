@@ -22,6 +22,8 @@ import { saveEquipment, demo, adminHeaders } from "../lib/data";
 import { prepareImage } from "../lib/image-upload";
 import { safeImage } from "../lib/utils";
 import { useData } from "../context";
+import { QuantityInput } from "./quantity-input";
+import { totalQuantity, borrowedQuantity, quantitySchema } from "../../shared/inventory.js";
 export function EquipmentEditor({
   item,
   onClose,
@@ -38,7 +40,8 @@ export function EquipmentEditor({
     category: existing?.category || "ครุภัณฑ์",
     description: existing?.description || "",
     imageUrl: existing?.imageUrl || "",
-    status: existing?.status || ("available" as Equipment["status"]),
+    status: existing?.status === "maintenance" ? "maintenance" as const : "available" as const,
+    quantity: existing ? totalQuantity(existing) : 1,
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -70,6 +73,8 @@ export function EquipmentEditor({
     setBusy(true);
     setError("");
     try {
+      const quantity = quantitySchema.safeParse(draft.quantity);
+      if (!quantity.success) throw Error(quantity.error.issues[0].message);
       if (
         draft.imageUrl &&
         !(demo && draft.imageUrl.startsWith("blob:")) &&
@@ -173,6 +178,7 @@ export function EquipmentEditor({
               />
             </div>
           </div>
+          <QuantityInput id="eq-quantity" label="จำนวนทั้งหมด" value={draft.quantity} onChange={quantity => setDraft(d => ({ ...d, quantity }))} min={Math.max(1, existing ? borrowedQuantity(existing) : 0)} disabled={busy} description={existing ? `กำลังถูกยืม ${borrowedQuantity(existing)} ชิ้น จำนวนทั้งหมดรวมชิ้นที่ยังไม่คืนด้วย` : "ระบุจำนวนชิ้นที่มีทั้งหมดสำหรับรายการนี้"} />
           <div>
             <Label>หมวดหมู่</Label>
             <Select
@@ -200,7 +206,7 @@ export function EquipmentEditor({
               onValueChange={(status) =>
                 setDraft((d) => ({
                   ...d,
-                  status: status as Equipment["status"],
+                  status: status as "available" | "maintenance",
                 }))
               }
             >
@@ -209,10 +215,10 @@ export function EquipmentEditor({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="available">พร้อมให้ยืม</SelectItem>
-                <SelectItem value="unavailable">กำลังถูกยืม</SelectItem>
                 <SelectItem value="maintenance">อยู่ระหว่างซ่อม</SelectItem>
               </SelectContent>
             </Select>
+            <p className="mt-2 text-sm muted">ระบบจะแสดงว่ากำลังถูกยืมเมื่อไม่มีชิ้นเหลือให้ยืม</p>
           </div>
           <div>
             <Label htmlFor="eq-description">รายละเอียด</Label>

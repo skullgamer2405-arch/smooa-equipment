@@ -66,7 +66,7 @@ export function AdminImport() {
   }
   function template() {
     const data =
-      "\ufeffชื่ออุปกรณ์,รหัสอุปกรณ์,หมวดหมู่,URL รูปภาพ,รายละเอียด\nอุปกรณ์ตัวอย่าง,SMO-EXAMPLE,ครุภัณฑ์,,รายละเอียดอุปกรณ์\n";
+      "\ufeffชื่ออุปกรณ์,รหัสอุปกรณ์,หมวดหมู่,URL รูปภาพ,รายละเอียด,จำนวน\nอุปกรณ์ตัวอย่าง,SMO-EXAMPLE,ครุภัณฑ์,,รายละเอียดอุปกรณ์,1\n";
     const url = URL.createObjectURL(
       new Blob([data], { type: "text/csv;charset=utf-8" }),
     );
@@ -132,7 +132,7 @@ export function AdminImport() {
                     <TableRow key={r.row} className="border-t">
                       <TableCell className="p-3">
                         {r.data.title}
-                        <span className="block muted">{r.data.assetCode}</span>
+                        <span className="block muted">{r.data.assetCode} · {r.data.quantity || 1} ชิ้น</span>
                       </TableCell>
                       <TableCell className="p-3">
                         {r.error || "พร้อมนำเข้า"}

@@ -21,16 +21,11 @@ service cloud.firestore {
     // ============================================
     // Equipment Collection
     // - Read: anyone (public catalog)
-    // - Write: authenticated admin only
+    // - Write: validated server inventory transactions only
     // ============================================
     match /equipment/{equipmentId} {
       allow read: if true;
-      allow create: if isAdmin()
-        && request.resource.data.keys().hasAll(['title', 'assetCode', 'status', 'createdAt'])
-        && validStr(request.resource.data.title, 200)
-        && validStr(request.resource.data.assetCode, 50)
-        && request.resource.data.status in ['available', 'unavailable', 'maintenance'];
-      allow update, delete: if isAdmin();
+      allow write: if false;
     }
 
     // ============================================

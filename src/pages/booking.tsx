@@ -32,6 +32,8 @@ import { useLine } from "../line-context";
 import { readBookingDraft, useBookingDraft, emptyBooking } from "../lib/booking-draft";
 import type { Equipment } from "../lib/types";
 import { bookingSchema, validDay } from "../../shared/booking-schema.js";
+import { availableQuantity, quantitySchema } from "../../shared/inventory.js";
+import { QuantityInput } from "../components/quantity-input";
 export { bookingSchema };
 type Values = z.infer<typeof bookingSchema>;
 export function BookingPage() {
@@ -42,6 +44,7 @@ export function BookingPage() {
   const equipmentId = params.get("id") || "";
   const [singleItem,setSingleItem] = useState<Equipment | null>(null), [itemReady,setItemReady] = useState(false);
   const item = equipment.find((e) => e.id === equipmentId) || singleItem;
+  const available = item ? availableQuantity(item) : 0;
   useEffect(()=>{let active=true;setItemReady(false);getEquipment(equipmentId).then(value=>{if(active)setSingleItem(value);}).catch(()=>{if(active)setSubmitError("โหลดอุปกรณ์ไม่สำเร็จ กรุณากลับไปเลือกรายการอีกครั้ง");}).finally(()=>{if(active)setItemReady(true);});return()=>{active=false;};},[equipmentId]);
   const loading = isLoading("equipment") && !itemReady;
   const [initialDraft] = useState(()=>readBookingDraft(equipmentId));
@@ -50,7 +53,7 @@ export function BookingPage() {
   const { consent: lineConsent, ready: lineReady } = useLine();
 
   const form = useForm<Values>({
-    resolver: zodResolver(bookingSchema),
+    resolver: zodResolver(bookingSchema.safeExtend({ quantity: quantitySchema }).refine(data => !item || data.quantity <= available, { path: ["quantity"], message: `อุปกรณ์เหลือ ${available} ชิ้น กรุณาลดจำนวนที่ขอยืม` })),
     defaultValues: initialDraft?.values || {
       ...emptyBooking,
       startDate: validDay(params.get("startDate") || "") ? params.get("startDate")! : "",
@@ -63,7 +66,7 @@ export function BookingPage() {
   const values = form.watch();
   const errors = form.formState.errors;
   async function submit(data: Values, withoutLine = false) {
-    if (!lineReady || !item || item.status !== "available") return;
+    if (!lineReady || !item || !available) return;
     setSubmitError("");
     try {
       const { terms: _, ...fields } = data;
@@ -85,7 +88,7 @@ export function BookingPage() {
               requestId,
             })
           : await createBooking(booking, requestId, lineConsent && !withoutLine);
-      const receipt = { bookingId:id, equipmentName:item.title, assetCode:item.assetCode, startDate:data.startDate, endDate:data.endDate, lineRequested:lineConsent && !withoutLine && (lineEnabled || demo) };
+      const receipt = { bookingId:id, equipmentName:item.title, assetCode:item.assetCode, quantity:data.quantity, startDate:data.startDate, endDate:data.endDate, lineRequested:lineConsent && !withoutLine && (lineEnabled || demo) };
       try { sessionStorage.setItem(`smo-booking-receipt-${demo?"demo":"live"}`, JSON.stringify(receipt)); } catch { /* receipt remains in navigation state */ }
       draft.clear(true);
       navigate("/success.html", { state:receipt });
@@ -97,7 +100,7 @@ export function BookingPage() {
     }
   }
   function field(
-    name: Exclude<keyof Values, "terms">,
+    name: Exclude<keyof Values, "terms" | "quantity">,
     label: string,
     type = "text",
     optional = false,
@@ -184,12 +187,12 @@ export function BookingPage() {
                 className="grid gap-6"
                 noValidate
                 aria-describedby={
-                  item.status === "available"
+                  available > 0
                     ? undefined
                     : "booking-unavailable"
                 }
               >
-                {item.status !== "available" && (
+                {!available && (
                   <p
                     id="booking-unavailable"
                     role="status"
@@ -200,7 +203,7 @@ export function BookingPage() {
                   </p>
                 )}
                 <fieldset
-                  disabled={item.status !== "available"}
+                  disabled={!available || form.formState.isSubmitting}
                   className="grid min-w-0 gap-6 border-0 p-0"
                 >
                   <legend className="sr-only">ข้อมูลคำขอยืม</legend>
@@ -213,6 +216,7 @@ export function BookingPage() {
                         </h2>
                       </div>
                       <div className="grid gap-5">
+                        <QuantityInput id="quantity" label="จำนวนที่ขอยืม" value={values.quantity} max={available} onChange={quantity => form.setValue("quantity", quantity, { shouldValidate: true, shouldDirty: true })} inputRef={form.register("quantity").ref} error={errors.quantity?.message} description={`เหลือให้ยืม ${available} ชิ้น ผู้ดูแลจะตรวจจำนวนอีกครั้งก่อนอนุมัติ`} />
                         {field("activityName", "ชื่อโครงการหรือกิจกรรม")}
                         <div className="grid gap-5 sm:grid-cols-2">
                           {field("startDate", "วันยืม", "date")}
@@ -281,6 +285,7 @@ export function BookingPage() {
                     <h2 className="text-xl mb-3">ตรวจคำขอก่อนส่ง</h2>
                     <p className="text-sm muted">{item.title} · {item.assetCode}</p>
                     <dl className="my-5 grid gap-3 border-y py-4 text-sm">
+                      <div><dt className="muted">จำนวนที่ขอยืม</dt><dd>{Number.isFinite(values.quantity) ? values.quantity : "—"} ชิ้น</dd></div>
                       <div>
                         <dt className="muted">ผู้ยืม</dt>
                         <dd>{values.fullName || "ยังไม่ระบุ"}</dd>
@@ -298,7 +303,7 @@ export function BookingPage() {
                         </dd>
                       </div>
                     </dl>
-                    {item.status === "available" ? (
+                    {available > 0 ? (
                       <>
                         <label className="flex min-h-11 items-start gap-3 cursor-pointer">
                           <Checkbox

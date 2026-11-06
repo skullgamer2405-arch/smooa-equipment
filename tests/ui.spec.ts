@@ -57,6 +57,7 @@ for (const blocked of [false, true])
       .filter({ visible: true })
       .first()
       .click();
+    await page.getByRole("button", { name: "รับคืน", exact: true }).filter({ visible: true }).first().click();
     await page.getByRole("button", { name: "ยืนยัน", exact: true }).click();
     await expect(page.getByRole("alertdialog")).not.toBeVisible();
     await page.reload();
@@ -129,6 +130,7 @@ test("booking, guarded approval, calendar and return stay functional", async ({
     .getByRole("button", { name: "รับคืน", exact: true })
     .first()
     .click();
+  await page.getByRole("button", { name: "รับคืน", exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("button", { name: "ยืนยัน", exact: true }).click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   expect(external).toEqual([]);

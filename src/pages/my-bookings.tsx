@@ -1,3 +1,4 @@
+import { bookingQuantity, returnedQuantity, remainingQuantity } from "../../shared/inventory.js";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardList, RefreshCw } from "lucide-react";
@@ -24,6 +25,8 @@ export function MyBookingsPage() {
     <div className="grid gap-4">
       {items.map(item=><article key={item.id} className="rounded-lg border bg-white p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm muted">{item.assetCode}</p><h2 className="text-xl mt-1">{item.equipmentName}</h2></div><Status value={item.status}/></div>
+        <p className="mt-3">จำนวนที่ยืม {bookingQuantity(item)} ชิ้น</p>
+        {["approved", "returned"].includes(item.status) && <p className="mt-1 text-sm">คืนแล้ว {returnedQuantity(item)} ชิ้น · ค้างคืน {remainingQuantity(item)} ชิ้น</p>}
         <p className="mt-4">{dateLabel(parseInputDate(item.startDay))} – {dateLabel(parseInputDate(item.endDay))}</p>
         <p className="text-sm muted mt-1">{item.activityName}</p>
         {item.adminNote&&<p className="mt-3 rounded bg-muted p-3">หมายเหตุจากผู้ดูแล: {item.adminNote}</p>}

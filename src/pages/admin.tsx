@@ -49,6 +49,8 @@ import { PageHeading, DataStatus, Empty, Status } from "../components/shared";
 import { QRDialog, printLabels } from "../components/qr";
 import { EquipmentEditor } from "../components/admin-equipment";
 import { AdminImport } from "../components/admin-import";
+import { QuantityInput } from "../components/quantity-input";
+import { totalQuantity, availableQuantity, borrowedQuantity, bookingQuantity, returnedQuantity, remainingQuantity, quantitySchema } from "../../shared/inventory.js";
 function Login() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -139,11 +141,15 @@ type Action = {
   description: string;
   danger?: boolean;
   reason?: boolean;
-  run: (note: string) => Promise<void>;
+  returnBooking?: Booking;
+  run: (note: string, quantity: number, requestId: string) => Promise<void>;
 };
 export function AdminPage() {
   const actionTrigger = useRef<HTMLElement | null>(null);
   const editorTrigger = useRef<HTMLElement | null>(null);
+  const actionLock = useRef(false);
+  const returnRequestId = useRef("");
+  const [returnCount, setReturnCount] = useState(1);
   function restoreFocus(element: HTMLElement | null) {
     if (element?.isConnected) element.focus();
     else
@@ -209,18 +215,23 @@ export function AdminPage() {
     actionTrigger.current = document.activeElement as HTMLElement;
     setNote("");
     setError("");
+    setReturnCount(a.returnBooking ? remainingQuantity(a.returnBooking) : 1);
+    returnRequestId.current = crypto.randomUUID();
     setAction(a);
   }
   async function execute() {
-    if (!action || busy) return;
+    if (!action || actionLock.current) return;
+    actionLock.current = true;
     setBusy(true);
     setError("");
     try {
-      await action.run(note);
+      if (action.returnBooking && (!quantitySchema.safeParse(returnCount).success || returnCount > remainingQuantity(action.returnBooking))) throw Error("กรุณาระบุจำนวนที่รับคืนให้ไม่เกินจำนวนค้างคืน");
+      await action.run(note, returnCount, returnRequestId.current);
       setAction(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      actionLock.current = false;
       setBusy(false);
     }
   }
@@ -229,7 +240,7 @@ export function AdminPage() {
     confirm({
       title:
         status === "approved" ? "ยืนยันอนุมัติคำขอ" : "ยืนยันไม่อนุมัติคำขอ",
-      description: `${eq?.title || "ไม่พบอุปกรณ์"} · ${eq?.assetCode || booking.equipmentId} สำหรับ ${booking.fullName}`,
+      description: `${eq?.title || "ไม่พบอุปกรณ์"} · ${eq?.assetCode || booking.equipmentId} จำนวน ${bookingQuantity(booking)} ชิ้น สำหรับ ${booking.fullName}`,
       danger: status === "rejected",
       reason: status === "rejected",
       run: async (note) => {
@@ -247,6 +258,11 @@ export function AdminPage() {
           );
 
       },
+    });
+  }
+  function receive(booking: Booking) {
+    confirm({ title: "ยืนยันรับคืนอุปกรณ์", description: `${booking.equipmentName} · ${booking.fullName} · ค้างคืน ${remainingQuantity(booking)} ชิ้น`, returnBooking: booking,
+      run: async (_note, quantity, requestId) => { await api.returnEquipment(booking.equipmentId, booking.id, quantity, requestId); announce(`รับคืน ${quantity} ชิ้นแล้ว`); },
     });
   }
   if (!authReady) return <p role="status">กำลังตรวจสอบการเข้าสู่ระบบ...</p>;
@@ -372,8 +388,8 @@ export function AdminPage() {
                             {dateLabel(b.endDate)}
                           </TableCell>
                           <TableCell className="p-4">
-                            <Status value={b.status} />
-                            {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>confirm({title:"ยืนยันรับคืนอุปกรณ์",description:`${b.equipmentName} · ${b.fullName}`,run:async()=>{await api.returnEquipment(b.equipmentId,b.id);announce("รับคืนอุปกรณ์แล้ว");}})}><Undo2 aria-hidden="true"/>รับคืน</Button>}
+                            <Status value={b.status} /><p className="mt-2 text-sm">จำนวน {bookingQuantity(b)} ชิ้น</p>{["approved", "returned"].includes(b.status) && <p className="mt-1 text-sm muted">คืนแล้ว {returnedQuantity(b)} ชิ้น · ค้างคืน {remainingQuantity(b)} ชิ้น</p>}
+                            {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>receive(b)}><Undo2 aria-hidden="true"/>รับคืน</Button>}
                         {b.status === "pending" && (
                               <div className="flex flex-wrap gap-2 mt-3">
                                 <Button
@@ -404,7 +420,7 @@ export function AdminPage() {
                       <CardContent className="p-5">
                         <div className="flex flex-wrap gap-3 justify-between mb-3">
                           <h3>{b.fullName}</h3>
-                          <Status value={b.status} />
+                          <Status value={b.status} /><p className="mt-2 text-sm">จำนวน {bookingQuantity(b)} ชิ้น</p>{["approved", "returned"].includes(b.status) && <p className="mt-1 text-sm muted">คืนแล้ว {returnedQuantity(b)} ชิ้น · ค้างคืน {remainingQuantity(b)} ชิ้น</p>}
                         </div>
                         <p className="muted text-sm">
                           {b.studentId} · {b.faculty}
@@ -418,7 +434,7 @@ export function AdminPage() {
                         </p>
                         <p>{b.activityName}</p>
                         <p className="text-sm muted">{b.reason}</p>
-                        {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>confirm({title:"ยืนยันรับคืนอุปกรณ์",description:`${b.equipmentName} · ${b.fullName}`,run:async()=>{await api.returnEquipment(b.equipmentId,b.id);announce("รับคืนอุปกรณ์แล้ว");}})}>รับคืน</Button>}
+                        {b.status === "approved" && <Button variant="outline" className="mt-3" onClick={()=>receive(b)}>รับคืน</Button>}
                         {b.status === "pending" && (
                           <div className="flex flex-wrap gap-3 mt-4">
                             <Button
@@ -505,7 +521,7 @@ export function AdminPage() {
                         {e.assetCode} · {e.category}
                       </p>
                       <div className="mt-2">
-                        <Status value={e.status} />
+                        <Status value={e.status} /><p className="mt-2 text-sm">เหลือ {availableQuantity(e)} จาก {totalQuantity(e)} ชิ้น · กำลังถูกยืม {borrowedQuantity(e)} ชิ้น</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -514,19 +530,14 @@ export function AdminPage() {
                         <Pencil />
                         แก้ไข
                       </Button>
-                      {e.status === "unavailable" && (
+                      {borrowedQuantity(e) > 0 && (
                         <Button
                           variant="outline"
-                          onClick={() =>
-                            confirm({
-                              title: "ยืนยันรับคืนอุปกรณ์",
-                              description: e.title,
-                              run: async () => {
-                                await api.returnEquipment(e.id);
-                                announce("รับคืนอุปกรณ์แล้ว");
-                              },
-                            })
-                          }
+                          onClick={() => {
+                            setSearch(e.assetCode);
+                            setParams({ tab: "requests", filter: "approved" });
+                            announce("เลือกคำขอของผู้ยืม แล้วระบุจำนวนที่รับคืน");
+                          }}
                         >
                           <Undo2 />
                           รับคืน
@@ -585,6 +596,7 @@ export function AdminPage() {
         >
           <AlertDialogTitle>{action?.title}</AlertDialogTitle>
           <AlertDialogDescription>{action?.description}</AlertDialogDescription>
+          {action?.returnBooking && <QuantityInput id="return-quantity" label="จำนวนที่รับคืนครั้งนี้" value={returnCount} max={remainingQuantity(action.returnBooking)} disabled={busy} onChange={quantity => { setReturnCount(quantity); returnRequestId.current = crypto.randomUUID(); }} description="นับของที่ได้รับจริง หากยังคืนไม่ครบ ระบบจะเตือนเฉพาะจำนวนที่ค้างคืน" />}
           {action?.reason && (
             <div>
               <Label htmlFor="decision-note">เหตุผล / หมายเหตุ</Label>
