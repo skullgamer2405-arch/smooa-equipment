@@ -70,7 +70,7 @@ export function CatalogPage() {
   const [params, setParams] = useSearchParams();
   const search = params.get("search") || "",
     category = params.get("category") || "all",
-    status = params.get("status") || "all";
+    status = params.get("status") === "available" ? "available" : "all";
   function update(key: string, value: string) {
     const p = new URLSearchParams(params);
     value && value !== "all" ? p.set(key, value) : p.delete(key);
@@ -129,8 +129,6 @@ export function CatalogPage() {
           <SelectContent>
             <SelectItem value="all">ทุกสถานะ</SelectItem>
             <SelectItem value="available">พร้อมให้ยืม</SelectItem>
-            <SelectItem value="unavailable">กำลังถูกยืม</SelectItem>
-            <SelectItem value="maintenance">อยู่ระหว่างซ่อม</SelectItem>
           </SelectContent>
         </Select>
       </div>

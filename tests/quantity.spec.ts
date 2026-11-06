@@ -100,3 +100,14 @@ test("mobile quantity controls have keyboard access, touch targets and stock lim
   await expect(page.locator("#quantity-error")).toContainText("เหลือ");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test("public status choices and old status links only show lendable items", async ({ page }) => {
+  for (const status of ["unavailable", "maintenance"]) {
+    await page.goto("/equipment.html?status=" + status);
+    await expect(page.getByRole("heading", { name: "ลูกบาสเกตบอล", exact: true })).toBeVisible();
+    await page.getByRole("combobox", { name: "สถานะอุปกรณ์" }).click();
+    await expect(page.getByRole("option")).toHaveCount(2);
+    await expect(page.getByRole("option", { name: "กำลังถูกยืม", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
+});
