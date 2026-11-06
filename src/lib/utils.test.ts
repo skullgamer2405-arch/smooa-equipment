@@ -9,6 +9,11 @@ import {
 import { mapRows } from "./import-equipment";
 import { bookingSchema } from "../pages/booking";
 describe("untrusted stored data", () => {
+  it("imports whole-piece quantities, defaults old files to one and rejects invalid counts", () => {
+    const rows = mapRows([{}, {จำนวน: 3}, {quantity: "2"}, {quantity: 0}, {quantity: -1}, {quantity: 1.5}, {quantity: "abc"}].map(data => ({title:"บอล",assetCode:"B",...data})));
+    expect(rows.slice(0,3).map(row => row.data.quantity)).toEqual([1,3,2]);
+    expect(rows.map(row => Boolean(row.error))).toEqual([false,false,false,true,true,true,true]);
+  });
   it("does not execute or call malformed timestamp properties", () => {
     expect(asDate({ toDate: "not-callable" })).toBeNull();
     expect(asDate("invalid")).toBeNull();

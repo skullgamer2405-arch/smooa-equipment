@@ -29,6 +29,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<State["user"]>(null), [authReady, setReady] = useState(false), [authError, setAuthError] = useState("");
   const [message, announce] = useState("");
   const [equipmentTotals, setEquipmentTotals] = useState<Record<string,number>>({}), [bookingTotals,setBookingTotals] = useState<Record<string,number>>({});
+  const [equipmentSize, setEquipmentSize] = useState(25);
   const [equipmentMeta,setEquipmentMeta] = useState<api.PageMeta>({cursor:undefined,hasMore:false}), [equipmentBusy,setEquipmentBusy] = useState(false);
   const [cursors,setCursors] = useState<unknown[]>([]), [bookingMeta,setBookingMeta] = useState<api.PageMeta>({cursor:undefined,hasMore:false});
   const queryKey = `${admin}:${filter}:${user?.email || ""}`;
@@ -41,11 +42,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLoaded(v => v.filter(n => n !== "equipment")); setErrors(v => ({...v,equipment:undefined}));
     let active = true;
     const stop = api.watch("equipment", (rows,meta) => {
-      setEquipment(rows as Equipment[]); setEquipmentMeta(meta); completed("equipment");
+      setEquipment(rows as Equipment[]); setEquipmentMeta(meta); setEquipmentBusy(false); completed("equipment");
       api.equipmentSummary().then(value => { if(active) setEquipmentTotals(value); }).catch(() => { if(active) setEquipmentTotals({}); });
-    }, text => failed("equipment",text));
+    }, text => { setEquipmentBusy(false); failed("equipment",text); }, { size: equipmentSize });
     return ()=>{active=false;stop();};
-  }, [version]);
+  }, [version, equipmentSize]);
   useEffect(() => {
     setReady(false); setAuthError("");
     return api.watchAuth(value => { setUser(value); setReady(true); }, text => { setAuthError(text); if(text) {setUser(null);setReady(true);} });
@@ -70,8 +71,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function moreEquipment() {
     if(equipmentBusy || !equipmentMeta.hasMore)return;
     setEquipmentBusy(true);
-    try { const result=await api.equipmentPage(equipmentMeta.cursor); setEquipment(prev=>[...prev,...result.rows.filter(e=>!prev.some(old=>old.id===e.id))]);setEquipmentMeta(result); }
-    catch {announce("โหลดอุปกรณ์เพิ่มไม่สำเร็จ กรุณาลองใหม่");} finally {setEquipmentBusy(false);}
+    setEquipmentSize(size => size + 25);
   }
   return <Context.Provider value={{equipment,bookings,calendarEntries,loading:loaded.length<3,isLoading:name=>!loaded.includes(name),errors,retry:()=>setVersion(v=>v+1),user,authReady,authError,message,announce,equipmentTotals,bookingTotals,moreEquipment,hasMoreEquipment:equipmentMeta.hasMore,equipmentBusy,bookingPage:activeCursors.length+1,hasMoreBookings:bookingMeta.hasMore,nextBookings:()=>{if(bookingMeta.hasMore)setCursors([...activeCursors,bookingMeta.cursor]);},previousBookings:()=>setCursors(activeCursors.slice(0,-1))}}>{children}</Context.Provider>;
 }

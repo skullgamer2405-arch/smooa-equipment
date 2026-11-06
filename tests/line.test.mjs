@@ -9,6 +9,7 @@ import {
 } from "../server/line.mjs";
 
 import { memoryDb } from "./fixtures/memory-db.mjs";
+import { createBookingService } from "../server/bookings.mjs";
 const userId = "U" + "1".repeat(32);
 const env = {
   LINE_ENABLED: "true",
@@ -226,6 +227,26 @@ test("overdue reminders repeat once per Bangkok day until the booking is returne
   f.setTime("2035-06-14T02:13:00Z");
   await f.service.reminders();
   assert.equal(f.pushes.length, 3);
+});
+
+test("partial returns keep daily reminders for outstanding pieces and stop only after the last return", async () => {
+  const f = fixture();
+  Object.assign(f.db.rows.get("equipment/fixture"), { quantity: 5, borrowedQuantity: 0 });
+  const id = await f.service.createBooking({ ...f.body, quantity: 5 });
+  await f.service.approve(id, "", "admin-fixture");
+  const bookings = createBookingService({ db: f.db, now: f.now });
+  await bookings.returnItem("fixture", id, { quantity: 2, requestId: randomUUID() });
+  const mine = (await f.service.myBookings("fixture-id-token")).items[0];
+  assert.equal(mine.status, "approved");
+  assert.equal(mine.quantity, 5); assert.equal(mine.returnedQuantity, 2);
+  f.setTime("2035-06-12T02:13:00Z");
+  assert.equal((await f.service.reminders()).accepted, 1);
+  assert.match(f.pushes.at(-1).payload.messages[0].text, /ค้างคืน: 3 ชิ้น/);
+  assert.equal((await f.service.reminders()).accepted, 0);
+  await bookings.returnItem("fixture", id, { quantity: 3, requestId: randomUUID() });
+  f.setTime("2035-06-13T02:13:00Z");
+  assert.equal((await f.service.reminders()).accepted, 0);
+  assert.equal((await f.service.myBookings("fixture-id-token")).items[0].status, "returned");
 });
 
 test("overdue jobs wait until 09:00 and yesterday's failed job is skipped next day", async () => {

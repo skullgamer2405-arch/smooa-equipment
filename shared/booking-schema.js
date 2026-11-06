@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { quantitySchema } from "./inventory.js";
 
 export function bangkokDay(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -36,6 +37,7 @@ export const bookingSchema = z
     startDate: required("วันยืม"),
     endDate: required("วันคืน"),
     terms: z.boolean().refine(Boolean, "กรุณายอมรับเงื่อนไขก่อนส่งคำขอ"),
+    quantity: quantitySchema.default(1),
   })
   .superRefine((d, ctx) => {
     for (const key of ["startDate", "endDate"]) {

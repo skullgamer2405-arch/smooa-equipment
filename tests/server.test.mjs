@@ -137,7 +137,7 @@ test("public calendar exposes only the projection; approval and return update it
   assert.equal((await request(path,json({action:"approved"},"admin"))).status,200);
   const response=await request("/api/public/calendar?from=2035-06-01&to=2035-06-30");assert.equal(response.status,200);
   const result=await response.json();assert.equal(result.items.length,1);
-  assert.deepEqual(Object.keys(result.items[0]).sort(),["id","equipmentId","equipmentName","assetCode","startDay","endDay","status"].sort());
+  assert.deepEqual(Object.keys(result.items[0]).sort(),["id","equipmentId","equipmentName","assetCode","startDay","endDay","status","quantity","returnedQuantity"].sort());
   assert(!JSON.stringify(result).includes(payload.studentId));assert(!JSON.stringify(result).includes(payload.fullName));
   assert.equal((await request("/api/admin/equipment/fixture/return",json({bookingId:created.bookingId},"admin"))).status,200);
   assert.equal((await (await request("/api/public/calendar?from=2035-06-01&to=2035-06-30")).json()).items.length,0);

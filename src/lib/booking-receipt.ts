@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validDay } from "../../shared/booking-schema.js";
+import { quantitySchema } from "../../shared/inventory.js";
 
 const receiptSchema = z.object({
   bookingId: z.string().min(1).max(150),
@@ -8,6 +9,7 @@ const receiptSchema = z.object({
   startDate: z.string().refine(validDay).optional(),
   endDate: z.string().refine(validDay).optional(),
   lineRequested: z.boolean().default(false),
+  quantity: quantitySchema.default(1),
 }).refine(value => Boolean(value.startDate) === Boolean(value.endDate));
 
 export function bookingReceipt(value: unknown) {

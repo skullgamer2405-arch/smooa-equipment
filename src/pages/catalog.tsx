@@ -30,6 +30,7 @@ import { demo } from "../lib/data";
 import { dateLabel, parseInputDate } from "../lib/utils";
 import { Scanner } from "../components/qr";
 import { bookingReceipt } from "../lib/booking-receipt";
+import { availableQuantity } from "../../shared/inventory.js";
 const categories: Record<string, string> = {
   all: "ทุกหมวดหมู่",
   sports: "กีฬา",
@@ -56,7 +57,7 @@ export function HomePage() {
     <section className="mb-8" aria-label="อุปกรณ์พร้อมให้ยืม">
       <SectionHeading title="อุปกรณ์พร้อมให้ยืม" link="/equipment.html?status=available"/>
       <div className="flex flex-wrap gap-2 mb-5">{Object.entries(categories).map(([key,label])=><Button key={key} variant="outline" asChild><Link to={key==="all"?"/equipment.html":"/equipment.html?category="+key}>{label}</Link></Button>)}</div>
-      <DataStatus collection="equipment">{equipment.some(e=>e.status==="available")?<div className="data-grid">{equipment.filter(e=>e.status==="available").slice(0,4).map(item=><EquipmentCard key={item.id} equipment={item}/>)}</div>:<Empty title={equipmentTotals.available ? "ยังไม่พบอุปกรณ์พร้อมยืมในชุดที่โหลด" : "ยังไม่มีอุปกรณ์พร้อมให้ยืม"} description={equipmentTotals.available ? "เปิดรายการอุปกรณ์เพื่อโหลดรายการเพิ่มเติม" : "เปิดรายการทั้งหมดเพื่อดูสถานะ หรือติดต่อผู้ดูแลตามช่องทางของสโมสร"} action={<Button asChild variant="outline"><Link to="/equipment.html?status=available">ดูอุปกรณ์ทั้งหมด</Link></Button>}/>}</DataStatus>
+      <DataStatus collection="equipment">{equipment.some(e=>availableQuantity(e)>0)?<div className="data-grid">{equipment.filter(e=>availableQuantity(e)>0).slice(0,4).map(item=><EquipmentCard key={item.id} equipment={item}/>)}</div>:<Empty title={equipmentTotals.available ? "ยังไม่พบอุปกรณ์พร้อมยืมในชุดที่โหลด" : "ยังไม่มีอุปกรณ์พร้อมให้ยืม"} description={equipmentTotals.available ? "เปิดรายการอุปกรณ์เพื่อโหลดรายการเพิ่มเติม" : "เปิดรายการทั้งหมดเพื่อดูสถานะ หรือติดต่อผู้ดูแลตามช่องทางของสโมสร"} action={<Button asChild variant="outline"><Link to="/equipment.html?status=available">ดูอุปกรณ์ทั้งหมด</Link></Button>}/>}</DataStatus>
     </section>
     <section aria-label="สถิติอุปกรณ์" className="grid grid-cols-2 gap-4 border-y py-5 md:grid-cols-4">
       {[["อุปกรณ์ทั้งหมด","all"],["พร้อมให้ยืม","available"],["กำลังถูกยืม","unavailable"],["อยู่ระหว่างซ่อม","maintenance"]].map(([label,key])=><div key={key}><p className="text-sm muted">{label}</p><p className="mt-2 text-2xl text-primary tabular-nums">{errors.equipment||isLoading("equipment")?"—":equipmentTotals[key]??"—"}<span className="text-sm muted ml-2">รายการ</span></p></div>)}
@@ -77,6 +78,7 @@ export function CatalogPage() {
   }
   const items = equipment.filter(
     (e) =>
+      availableQuantity(e) > 0 &&
       (category === "all" ||
         e.category === categories[category] ||
         e.category === category) &&
@@ -186,6 +188,7 @@ export function SuccessPage() {
           </p>
           {id&&<div className="mt-5 rounded-lg bg-muted p-4">
             {receipt?.equipmentName&&<><h2 className="text-xl">{receipt.equipmentName}</h2><p className="text-sm muted mt-1">{receipt.assetCode}</p></>}
+            <p className="mt-2">จำนวน {receipt?.quantity} ชิ้น</p>
             {receipt?.startDate && receipt.endDate && <p className="mt-2">{dateLabel(parseInputDate(receipt.startDate))} – {dateLabel(parseInputDate(receipt.endDate))}</p>}
             <p className="mt-3 break-all text-sm">รหัสคำขอ: {id}</p>
             <Button variant="outline" className="mt-3" onClick={async()=>{try{await navigator.clipboard.writeText(id);setCopied(true);}catch{setCopied(false);}}}>คัดลอกรหัสคำขอ</Button>

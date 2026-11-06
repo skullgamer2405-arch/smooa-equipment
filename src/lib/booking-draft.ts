@@ -3,8 +3,9 @@ import type { UseFormReturn } from "react-hook-form";
 import type { z } from "zod";
 import { bookingSchema } from "../../shared/booking-schema.js";
 import { demo } from "./data";
+import { quantitySchema } from "../../shared/inventory.js";
 export type BookingValues = z.infer<typeof bookingSchema>;
-export const emptyBooking: BookingValues = { fullName:"",studentId:"",faculty:"",department:"",affiliation:"",applicantEmail:"",applicantPhone:"",activityName:"",reason:"",startDate:"",endDate:"",terms:false };
+export const emptyBooking: BookingValues = { fullName:"",studentId:"",faculty:"",department:"",affiliation:"",applicantEmail:"",applicantPhone:"",activityName:"",reason:"",startDate:"",endDate:"",terms:false,quantity:1 };
 const key = (id: string) => `smo-booking-draft-v1-${demo ? "demo" : "live"}:${id}`;
 export function readBookingDraft(id: string, now = Date.now()) {
   try {
@@ -12,14 +13,16 @@ export function readBookingDraft(id: string, now = Date.now()) {
     if (!saved || !/^[0-9a-f-]{36}$/i.test(saved.requestId) || !Number.isFinite(saved.updatedAt) || now - saved.updatedAt > 86400000 || saved.updatedAt > now + 60000) return null;
     const values = { ...emptyBooking };
     for (const field of Object.keys(emptyBooking) as (keyof BookingValues)[]) {
-      if (field !== "terms" && typeof saved.values?.[field] === "string" && saved.values[field].length <= 1000) values[field] = saved.values[field];
+      if (field !== "terms" && field !== "quantity" && typeof saved.values?.[field] === "string" && saved.values[field].length <= 1000) values[field] = saved.values[field];
     }
+    const quantity = quantitySchema.safeParse(saved.values?.quantity);
+    if (quantity.success) values.quantity = quantity.data;
     return { values, requestId: saved.requestId as string };
   } catch { return null; }
 }
 export function writeBookingDraft(id: string, requestId: string, values: BookingValues) {
   try {
-    if (Object.entries(values).some(([field,value])=>field!=="terms" && typeof value==="string" && value.length)) sessionStorage.setItem(key(id), JSON.stringify({ values: { ...values, terms:false }, requestId, updatedAt:Date.now() }));
+    if (values.quantity > 1 || Object.entries(values).some(([field,value])=>field!=="terms" && typeof value==="string" && value.length)) sessionStorage.setItem(key(id), JSON.stringify({ values: { ...values, terms:false }, requestId, updatedAt:Date.now() }));
     else sessionStorage.removeItem(key(id));
     return true;
   } catch { return false; }

@@ -8,6 +8,8 @@ export interface Equipment {
   status: "available" | "unavailable" | "maintenance";
   createdAt?: unknown;
   returnDate?: unknown;
+  quantity?: number;
+  borrowedQuantity?: number;
 }
 export interface Booking {
   id: string;
@@ -30,6 +32,8 @@ export interface Booking {
   adminNote?: string;
   requestId?: string;
   lineLinked?: boolean;
+  quantity?: number;
+  returnedQuantity?: number;
 }
 export interface CalendarEntry {
   id: string;
@@ -41,7 +45,7 @@ export interface CalendarEntry {
   equipmentName?: string;
 }
 export type CollectionName = "equipment" | "bookings" | "calendarEntries";
-export type PublicEvent = { id: string; equipmentId: string; equipmentName: string; assetCode: string; startDay: string; endDay: string; status: Booking["status"] };
+export type PublicEvent = { id: string; equipmentId: string; equipmentName: string; assetCode: string; startDay: string; endDay: string; status: Booking["status"]; quantity?: number; returnedQuantity?: number };
 export type MyBooking = PublicEvent & { activityName: string; adminNote: string; createdAt: string };
 export type BookingFilter = "all" | Booking["status"] | "due" | "overdue";
 export type WatchOptions = { filter?: BookingFilter; cursor?: unknown; from?: string; to?: string; size?: number };
